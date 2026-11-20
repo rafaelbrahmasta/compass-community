@@ -1,15 +1,17 @@
 use axum::{
     extract::{Query, State},
     Json,
+    http::HeaderMap,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{HumanitySettings, Member, TicketCategory, TicketPurchase};
+use crate::utils::{limiter, extract_ip};
 
 #[derive(Deserialize)]
 pub struct BuyTicketRequest {
@@ -58,8 +60,12 @@ pub struct BankInfo {
 
 pub async fn buy_ticket(
     State((pool, _config)): State<(PgPool, Config)>,
+    headers: HeaderMap,
     Json(body): Json<BuyTicketRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    // Rate limit per IP
+    limiter().check(&extract_ip(&headers))?;
+
     let clean_code = body.member_code.trim().to_uppercase();
     let clean_phone = body.phone.trim().replace(" ", "").replace("-", "");
 
@@ -119,6 +125,12 @@ pub async fn buy_ticket(
     .await?
     .ok_or_else(|| AppError::NotFound("Kategori tiket tidak ditemukan untuk pertandingan ini".into()))?;
 
+    if !category.is_active {
+        return Err(AppError::BadRequest(
+            format!("Kategori tiket '{}' tidak aktif saat ini.", category.name)
+        ));
+    }
+
     if category.sold >= category.quota {
         return Err(AppError::BadRequest(
             format!("Maaf, kuota untuk kategori '{}' sudah habis.", category.name)
@@ -133,6 +145,22 @@ pub async fn buy_ticket(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
+
+    // Validasi status pertandingan (hanya upcoming atau live yang dibuka penjualan)
+    if match_data.status != "upcoming" && match_data.status != "live" {
+        return Err(AppError::BadRequest(
+            "Penjualan tiket untuk pertandingan ini belum dibuka atau sudah ditutup.".into(),
+        ));
+    }
+
+    // Validasi jendela penjualan: hanya 4 hari ke depan (zona Asia/Jakarta = UTC+7)
+    let today_jakarta = (Utc::now() + Duration::hours(7)).date_naive();
+    let four_days_later = today_jakarta + Duration::days(4);
+    if match_data.match_date < today_jakarta || match_data.match_date > four_days_later {
+        return Err(AppError::BadRequest(
+            "Tiket hanya dapat dibeli untuk pertandingan dalam jangka 4 hari ke depan.".into(),
+        ));
+    }
 
     // Generate unique ticket_code: TCK-YYYYMMDD-XXXX
     let today_str = Utc::now().format("%Y%m%d").to_string();
@@ -255,8 +283,12 @@ pub struct TicketDetailItem {
 
 pub async fn check_ticket(
     State((pool, _config)): State<(PgPool, Config)>,
+    headers: HeaderMap,
     Query(params): Query<CheckTicketQuery>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    // Rate limit per IP
+    limiter().check(&extract_ip(&headers))?;
+
     let ticket_code = params.ticket_code.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
     let member_code = params.member_code.as_deref().map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty());
     let phone = params.phone.as_deref().map(|s| s.trim().replace(" ", "").replace("-", "")).filter(|s| !s.is_empty());

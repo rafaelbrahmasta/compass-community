@@ -1,10 +1,7 @@
-use std::path::Path;
-use uuid::Uuid;
-use axum::body::Bytes;
-
 pub mod jwt;
 pub mod upload;
 pub mod slug;
+pub mod rate_limiter;
 
 pub use upload::save_upload;
-pub use slug::to_slug;
+pub use rate_limiter::{limiter, extract_ip};

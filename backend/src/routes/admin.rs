@@ -25,6 +25,7 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/carousel/:id/image", post(handlers::carousel::upload_slide_image))
         // About
         .route("/admin/about", put(handlers::about::update_about))
+        .route("/admin/about/image", post(handlers::about::upload_about_image))
         .route("/admin/team-members", get(handlers::about::get_team_members))
         .route("/admin/team-members", post(handlers::about::create_team_member))
         .route("/admin/team-members/:id", put(handlers::about::update_team_member))

@@ -11,7 +11,7 @@ pub async fn get_match_tickets(
     Path(match_id): Path<Uuid>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     let tickets = sqlx::query_as::<_, TicketCategory>(
-        "SELECT * FROM ticket_categories WHERE match_id = $1 ORDER BY price ASC"
+        "SELECT * FROM ticket_categories WHERE match_id = $1 AND is_active = true ORDER BY price ASC"
     ).bind(match_id).fetch_all(&pool).await?;
     Ok(ok("Kategori tiket", tickets))
 }
@@ -40,7 +40,7 @@ pub async fn create_ticket(
 ) -> AppResult<impl axum::response::IntoResponse> {
     let ticket = sqlx::query_as::<_, TicketCategory>(
         "INSERT INTO ticket_categories (id, match_id, name, price, quota, sold)
-         VALUES ($1, $2, $3, $4, $5, 0) RETURNING *"
+         VALUES ($1, $2, $3, $4, $5, 0, true) RETURNING *"
     )
     .bind(Uuid::new_v4()).bind(match_id).bind(&body.name).bind(body.price).bind(body.quota)
     .fetch_one(&pool).await?;

@@ -96,6 +96,7 @@ pub struct TicketCategory {
     pub price: rust_decimal::Decimal,
     pub quota: i32,
     pub sold: i32,
+    pub is_active: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -181,13 +182,13 @@ pub struct MerchImage {
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct GalleryAlbum {
     pub id: Uuid,
-    pub title: String,
-    pub description: Option<String>,
+    pub name: String,
+    pub description: String,
     pub cover_url: Option<String>,
-    pub event_date: Option<chrono::NaiveDate>,
-    pub is_published: bool,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub photo_count: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
@@ -195,7 +196,7 @@ pub struct GalleryPhoto {
     pub id: Uuid,
     pub album_id: Uuid,
     pub image_url: String,
-    pub caption: Option<String>,
+    pub caption: String,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }
@@ -205,11 +206,11 @@ pub struct GalleryPhoto {
 pub struct Agenda {
     pub id: Uuid,
     pub title: String,
-    pub description: Option<String>,
-    pub event_date: chrono::NaiveDate,
-    pub event_time: Option<chrono::NaiveTime>,
-    pub location: Option<String>,
-    pub is_published: bool,
+    pub agenda_date: chrono::NaiveDate,
+    pub agenda_time: chrono::NaiveTime,
+    pub location: String,
+    pub description: String,
+    pub status: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -221,10 +222,12 @@ pub struct News {
     pub slug: String,
     pub content: String,
     pub thumbnail_url: Option<String>,
-    pub author: Option<String>,
-    pub is_published: bool,
+    pub summary: String,
+    pub author: String,
+    pub status: String,
     pub published_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 // ===== CONTACT MESSAGES =====

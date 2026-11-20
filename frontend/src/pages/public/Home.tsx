@@ -42,6 +42,9 @@ export default function Home() {
 
   const slides = slidesData?.data?.data || []
   const about = aboutData?.data?.data?.about
+  const aboutImage =
+    aboutData?.data?.data?.about_image?.content ||
+    'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80'
   const history = aboutData?.data?.data?.history || []
   const humanity = humanityData?.data?.data || null
   const upcomingMatches = upcomingData?.data?.data || []
@@ -96,7 +99,7 @@ export default function Home() {
                 <div className="relative">
                   <div className="w-full h-80 sm:h-96 rounded-2xl overflow-hidden border-2 border-gold/30 shadow-2xl relative">
                     <img
-                      src="https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80"
+                      src={aboutImage}
                       alt="Komunitas COMPASS PSS Sleman"
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-700"
                     />

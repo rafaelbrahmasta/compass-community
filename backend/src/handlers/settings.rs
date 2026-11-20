@@ -1,8 +1,6 @@
 use axum::{extract::{State, Multipart}, Json};
-use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use std::collections::HashMap;
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::SiteSetting;

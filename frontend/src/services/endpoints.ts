@@ -23,6 +23,7 @@ export const getAbout = () =>
   api.get<ApiResponse<{
     about: AboutContent | null
     visi_misi: AboutContent | null
+    about_image: AboutContent | null
     team_members: TeamMember[]
     history: HistoryTimeline[]
   }>>('/about')
@@ -123,6 +124,13 @@ export const adminDeleteSlide = (id: string) =>
 // Admin About
 export const adminUpdateAbout = (section: string, content: string) =>
   api.put<ApiResponse<AboutContent>>('/admin/about', { section, content })
+export const adminUploadAboutImage = (file: File) => {
+  const form = new FormData()
+  form.append('image', file)
+  return api.post<ApiResponse<AboutContent>>('/admin/about/image', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const adminGetTeamMembers = () =>
   api.get<ApiResponse<TeamMember[]>>('/admin/team-members')
 export const adminCreateTeamMember = (data: FormData) =>

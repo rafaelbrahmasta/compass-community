@@ -33,17 +33,19 @@ export default function AdminSettings() {
 
   useEffect(() => {
     if (settings) {
-      setSiteName(settings.site_name || 'COMPASS')
-      setContactName(settings.contact_name || '')
-      setContactEmail(settings.contact_email || '')
-      setContactPhone(settings.contact_phone || '')
-      setContactWhatsapp(settings.contact_whatsapp || '')
-      setAddress(settings.address || '')
-      setMapsEmbedUrl(settings.maps_embed_url || '')
-      setInstagramUrl(settings.instagram_url || '')
-      setTwitterUrl(settings.twitter_url || '')
-      setYoutubeUrl(settings.youtube_url || '')
-      setMerchGlobalFormUrl(settings.merch_global_form_url || '')
+      setTimeout(() => {
+        setSiteName(settings.site_name || 'COMPASS')
+        setContactName(settings.contact_name || '')
+        setContactEmail(settings.contact_email || '')
+        setContactPhone(settings.contact_phone || '')
+        setContactWhatsapp(settings.contact_whatsapp || '')
+        setAddress(settings.address || '')
+        setMapsEmbedUrl(settings.maps_embed_url || '')
+        setInstagramUrl(settings.instagram_url || '')
+        setTwitterUrl(settings.twitter_url || '')
+        setYoutubeUrl(settings.youtube_url || '')
+        setMerchGlobalFormUrl(settings.merch_global_form_url || '')
+      }, 0)
     }
   }, [settings])
 

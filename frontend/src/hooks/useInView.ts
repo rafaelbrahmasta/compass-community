@@ -15,7 +15,7 @@ export function useInView<T extends HTMLElement = HTMLDivElement>(options: UseIn
     // Check prefers-reduced-motion
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (prefersReducedMotion) {
-      setIsInView(true)
+      setTimeout(() => setIsInView(true), 0)
       return
     }
 

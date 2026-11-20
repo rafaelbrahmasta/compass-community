@@ -14,6 +14,7 @@ pub struct LoginRequest {
 }
 
 #[derive(Serialize)]
+#[allow(dead_code)]
 pub struct AdminPublic {
     pub id: uuid::Uuid,
     pub email: String,

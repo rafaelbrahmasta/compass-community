@@ -2,7 +2,7 @@ use axum::{extract::{State, Path, Query, Multipart}, Json};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::{Local, NaiveDate, Duration};
+use chrono::{Utc, NaiveDate, Duration};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::Match;
@@ -32,7 +32,8 @@ pub async fn get_matches(
 pub async fn get_upcoming_matches(
     State((pool, _config)): State<(PgPool, Config)>,
 ) -> AppResult<impl axum::response::IntoResponse> {
-    let today = Local::now().date_naive();
+    // Asia/Jakarta = UTC+7 (Indonesia tidak memiliki DST)
+    let today = (Utc::now() + Duration::hours(7)).date_naive();
     let four_days = today + Duration::days(4);
 
     let matches = sqlx::query_as::<_, Match>(

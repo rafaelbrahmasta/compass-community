@@ -24,6 +24,7 @@ pub async fn require_any_admin(
 }
 
 /// Middleware: izinkan super_admin dan admin_1
+#[allow(dead_code)]
 pub async fn require_admin_1_or_above(
     request: Request,
     next: Next,

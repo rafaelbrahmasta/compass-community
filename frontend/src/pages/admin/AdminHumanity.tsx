@@ -26,10 +26,12 @@ export default function AdminHumanity() {
 
   useEffect(() => {
     if (humanity) {
-      setProgramText(humanity.program_text)
-      setBankName(humanity.bank_name)
-      setAccountName(humanity.account_name)
-      setAccountNumber(humanity.account_number)
+      setTimeout(() => {
+        setProgramText(humanity.program_text)
+        setBankName(humanity.bank_name)
+        setAccountName(humanity.account_name)
+        setAccountNumber(humanity.account_number)
+      }, 0)
     }
   }, [humanity])
 
@@ -156,7 +158,7 @@ export default function AdminHumanity() {
                 className="w-full text-xs text-white/70 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-gold cursor-pointer"
               />
               <p className="text-xs text-white/40">
-                Pindai QR ini akan langsung muncul saat pengunjung mengklik tombol 'Donasi' di halaman beranda.
+                Pindai QR ini akan langsung muncul saat pengunjung mengklik tombol &apos;Donasi&apos; di halaman beranda.
               </p>
             </div>
           </div>

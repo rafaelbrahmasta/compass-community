@@ -1,4 +1,4 @@
-use axum::{extract::State, Json};
+use axum::extract::State;
 use serde_json::json;
 use sqlx::PgPool;
 use crate::config::Config;

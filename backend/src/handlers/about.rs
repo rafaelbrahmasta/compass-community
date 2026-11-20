@@ -1,5 +1,5 @@
 use axum::{extract::{State, Path, Multipart}, Json};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Config;
@@ -17,6 +17,10 @@ pub async fn get_about(
         "SELECT * FROM about_content WHERE section = 'visi_misi' LIMIT 1"
     ).fetch_optional(&pool).await?;
 
+    let about_image = sqlx::query_as::<_, AboutContent>(
+        "SELECT * FROM about_content WHERE section = 'about_image' LIMIT 1"
+    ).fetch_optional(&pool).await?;
+
     let team_members = sqlx::query_as::<_, TeamMember>(
         "SELECT * FROM team_members ORDER BY sort_order ASC"
     ).fetch_all(&pool).await?;
@@ -28,9 +32,43 @@ pub async fn get_about(
     Ok(ok("Data about", serde_json::json!({
         "about": about,
         "visi_misi": visi_misi,
+        "about_image": about_image,
         "team_members": team_members,
         "history": history,
     })))
+}
+
+pub async fn upload_about_image(
+    State((pool, config)): State<(PgPool, Config)>,
+    mut multipart: Multipart,
+) -> AppResult<impl axum::response::IntoResponse> {
+    let mut image_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+        if field.name() == Some("image") || field.name() == Some("photo") || field.name() == Some("file") {
+            let ct = field.content_type().unwrap_or("image/jpeg").to_string();
+            let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            if !data.is_empty() {
+                let saved = crate::utils::save_upload(&config.upload_dir, "about", &ct, &data).await?;
+                image_url = Some(saved);
+            }
+        }
+    }
+
+    let url = image_url.ok_or_else(|| AppError::BadRequest("File foto tidak ditemukan".into()))?;
+
+    let result = sqlx::query_as::<_, AboutContent>(
+        "INSERT INTO about_content (id, section, content)
+         VALUES ($1, 'about_image', $2)
+         ON CONFLICT (section) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
+         RETURNING *"
+    )
+    .bind(Uuid::new_v4())
+    .bind(&url)
+    .fetch_one(&pool)
+    .await?;
+
+    Ok(ok("Foto profil komunitas berhasil diperbarui", result))
 }
 
 #[derive(Deserialize)]
@@ -68,6 +106,7 @@ pub async fn get_team_members(
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 pub struct CreateTeamMemberRequest {
     pub name: String,
     pub position: String,

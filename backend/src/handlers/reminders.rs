@@ -2,7 +2,7 @@ use axum::{extract::{State}, Json};
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
+use chrono::Duration;
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{Match, Reminder};

@@ -1,5 +1,5 @@
 use axum::{extract::{State, Path, Multipart}, Json};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Config;

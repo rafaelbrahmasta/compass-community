@@ -41,6 +41,7 @@ pub async fn start_scheduler(pool: PgPool, config: Config) -> anyhow::Result<()>
 
 #[derive(sqlx::FromRow)]
 struct ExpiredTicket {
+    #[allow(dead_code)]
     id: uuid::Uuid,
     category_id: uuid::Uuid,
 }

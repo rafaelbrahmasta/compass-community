@@ -23,12 +23,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedAdmin = localStorage.getItem('compass_admin')
 
     if (storedToken && storedAdmin) {
-      setToken(storedToken)
-      try {
-        setAdmin(JSON.parse(storedAdmin))
-      } catch {
-        localStorage.removeItem('compass_admin')
-      }
+      setTimeout(() => {
+        setToken(storedToken)
+        try {
+          setAdmin(JSON.parse(storedAdmin))
+        } catch {
+          localStorage.removeItem('compass_admin')
+        }
+      }, 0)
       // Verify token still valid
       getAdminProfile()
         .then(res => setAdmin(res.data.data))
@@ -40,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         })
         .finally(() => setIsLoading(false))
     } else {
-      setIsLoading(false)
+      setTimeout(() => setIsLoading(false), 0)
     }
   }, [])
 
