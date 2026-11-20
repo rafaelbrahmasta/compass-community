@@ -18,6 +18,8 @@ pub struct AdminPublic {
     pub id: uuid::Uuid,
     pub email: String,
     pub name: String,
+    pub role: String,
+    pub is_active: bool,
 }
 
 pub async fn login(
@@ -32,6 +34,10 @@ pub async fn login(
     .await?
     .ok_or_else(|| AppError::Unauthorized("Email atau password salah".into()))?;
 
+    if !admin.is_active {
+        return Err(AppError::Forbidden("Akun admin ini telah dinonaktifkan. Silakan hubungi super admin.".into()));
+    }
+
     let parsed_hash = PasswordHash::new(&admin.password_hash)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Error parsing password hash")))?;
 
@@ -39,7 +45,7 @@ pub async fn login(
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::Unauthorized("Email atau password salah".into()))?;
 
-    let token = create_token(admin.id, &admin.email)
+    let token = create_token(admin.id, &admin.email, &admin.name, &admin.role)
         .map_err(|e| AppError::Internal(e))?;
 
     Ok(ok("Login berhasil", serde_json::json!({
@@ -48,6 +54,8 @@ pub async fn login(
             "id": admin.id,
             "email": admin.email,
             "name": admin.name,
+            "role": admin.role,
+            "is_active": admin.is_active,
         }
     })))
 }
@@ -65,10 +73,16 @@ pub async fn me(
         .await?
         .ok_or_else(|| AppError::NotFound("Admin tidak ditemukan".into()))?;
 
+    if !admin.is_active {
+        return Err(AppError::Forbidden("Akun admin ini telah dinonaktifkan".into()));
+    }
+
     Ok(ok("Data admin", serde_json::json!({
         "id": admin.id,
         "email": admin.email,
         "name": admin.name,
+        "role": admin.role,
+        "is_active": admin.is_active,
     })))
 }
 

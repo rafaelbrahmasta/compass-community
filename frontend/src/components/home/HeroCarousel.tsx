@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Ticket, Users } from 'lucide-react'
 import type { CarouselSlide } from '../../types'
 
 interface HeroCarouselProps {
   slides: CarouselSlide[]
 }
 
-// Fallback image jika slide belum memiliki gambar upload
 const defaultImages = [
   'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1920&q=80',
   'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1920&q=80',
@@ -63,7 +64,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
 
   return (
     <div
-      className="relative h-[75vh] min-h-[500px] max-h-[750px] w-full overflow-hidden bg-dark select-none"
+      className="relative h-[78vh] min-h-[520px] max-h-[780px] w-full overflow-hidden bg-dark select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
@@ -84,7 +85,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
           >
             {/* Background Image */}
             <div
-              className="absolute inset-0 bg-cover bg-center transform scale-105 transition-transform duration-7000 ease-out"
+              className="absolute inset-0 bg-cover bg-center"
               style={{
                 backgroundImage: `url('${imageUrl}')`,
                 transform: isActive ? 'scale(1.0)' : 'scale(1.08)',
@@ -93,28 +94,36 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
             />
 
             {/* Dark & Green Overlay for Readability */}
-            <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/70 to-primary-dark/50" />
+            <div className="absolute inset-0 bg-gradient-to-t from-dark via-dark/75 to-primary/40" />
             <div className="absolute inset-0 bg-black/40" />
 
             {/* Text Content */}
             <div className="relative z-20 h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-end pb-24 md:pb-32">
               <div className="max-w-3xl animate-slide-up">
-                <span className="inline-block px-3 py-1 bg-gold/90 text-dark font-heading font-bold text-xs uppercase tracking-widest rounded mb-3">
+                <span className="inline-block px-3.5 py-1 bg-gold text-dark font-heading font-black text-xs uppercase tracking-widest rounded-md mb-3 shadow-md">
                   COMPASS SLEMAN
                 </span>
                 <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black text-white tracking-wide uppercase leading-tight drop-shadow-lg">
                   {slide.title}
                 </h1>
-                <p className="mt-3 text-lg sm:text-xl text-white/90 font-normal drop-shadow max-w-2xl">
+                <p className="mt-3 text-lg sm:text-xl text-white/90 font-normal drop-shadow max-w-2xl leading-relaxed">
                   {slide.subtitle}
                 </p>
-                <div className="mt-6 flex flex-wrap gap-4">
-                  <a href="/tiket" className="btn-gold rounded text-sm px-6 py-3">
-                    Beli Tiket Pertandingan
-                  </a>
-                  <a href="/about" className="btn-outline-gold rounded text-sm px-6 py-3 backdrop-blur-sm">
-                    Tentang Kami
-                  </a>
+                <div className="mt-7 flex flex-wrap gap-4">
+                  <Link
+                    to="/tiket"
+                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 shadow-lg shadow-gold/20 transition-all duration-300"
+                  >
+                    <Ticket size={18} strokeWidth={1.5} />
+                    <span>Beli Tiket Pertandingan</span>
+                  </Link>
+                  <Link
+                    to="/about"
+                    className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-gold/60 text-gold hover:bg-gold hover:text-dark font-heading font-black uppercase tracking-wider text-sm backdrop-blur-sm transition-all duration-300"
+                  >
+                    <Users size={18} strokeWidth={1.5} />
+                    <span>Tentang Kami</span>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -122,24 +131,20 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
         )
       })}
 
-      {/* Prev / Next Buttons */}
+      {/* Prev / Next Buttons with Lucide Icons */}
       <button
         onClick={prevSlide}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-gold text-white hover:text-dark transition-all duration-200 border border-white/10"
+        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-black/40 hover:bg-gold text-white hover:text-dark transition-all duration-300 border border-white/10 hover:border-gold hover:scale-110 shadow-lg"
         aria-label="Slide sebelumnya"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-        </svg>
+        <ChevronLeft size={22} strokeWidth={1.5} />
       </button>
       <button
         onClick={nextSlide}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/40 hover:bg-gold text-white hover:text-dark transition-all duration-200 border border-white/10"
+        className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-black/40 hover:bg-gold text-white hover:text-dark transition-all duration-300 border border-white/10 hover:border-gold hover:scale-110 shadow-lg"
         aria-label="Slide berikutnya"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-        </svg>
+        <ChevronRight size={22} strokeWidth={1.5} />
       </button>
 
       {/* Indicator Dots */}

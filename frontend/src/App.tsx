@@ -10,6 +10,7 @@ import LoadingSpinner from './components/common/LoadingSpinner'
 const Home = lazy(() => import('./pages/public/Home'))
 const About = lazy(() => import('./pages/public/About'))
 const Tiket = lazy(() => import('./pages/public/Tiket'))
+const CekTiket = lazy(() => import('./pages/public/CekTiket'))
 const Merchandise = lazy(() => import('./pages/public/Merchandise'))
 const MerchandiseDetail = lazy(() => import('./pages/public/MerchandiseDetail'))
 const Gallery = lazy(() => import('./pages/public/Gallery'))
@@ -38,6 +39,11 @@ const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'))
 const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'))
 const AdminAccount = lazy(() => import('./pages/admin/AdminAccount'))
 
+// === New Admin Pages (RBAC, Members, Orders) ===
+const AdminAnggota = lazy(() => import('./pages/admin/AdminAnggota'))
+const AdminKelolaAdmin = lazy(() => import('./pages/admin/AdminKelolaAdmin'))
+const AdminPembayaranTiket = lazy(() => import('./pages/admin/AdminPembayaranTiket'))
+
 const SuspenseFallback = () => (
   <div className="flex items-center justify-center min-h-screen bg-dark">
     <LoadingSpinner size="lg" />
@@ -54,6 +60,7 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
             <Route path="/tiket" element={<Tiket />} />
+            <Route path="/tiket/cek" element={<CekTiket />} />
             <Route path="/merchandise" element={<Merchandise />} />
             <Route path="/merchandise/:id" element={<MerchandiseDetail />} />
             <Route path="/gallery" element={<Gallery />} />
@@ -76,17 +83,24 @@ export default function App() {
               <Route path="/admin/carousel" element={<AdminCarousel />} />
               <Route path="/admin/about" element={<AdminAbout />} />
               <Route path="/admin/timeline" element={<AdminTimeline />} />
-              <Route path="/admin/humanity" element={<AdminHumanity />} />
               <Route path="/admin/jadwal" element={<AdminJadwal />} />
-              <Route path="/admin/tiket" element={<AdminTiket />} />
-              <Route path="/admin/reminder" element={<AdminReminder />} />
               <Route path="/admin/merch" element={<AdminMerch />} />
               <Route path="/admin/gallery" element={<AdminGallery />} />
               <Route path="/admin/agenda" element={<AdminAgenda />} />
               <Route path="/admin/berita" element={<AdminBerita />} />
-              <Route path="/admin/settings" element={<AdminSettings />} />
               <Route path="/admin/messages" element={<AdminMessages />} />
               <Route path="/admin/account" element={<AdminAccount />} />
+
+              {/* Rute Khusus SUPER_ADMIN (Protected by role) */}
+              <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
+                <Route path="/admin/admins" element={<AdminKelolaAdmin />} />
+                <Route path="/admin/anggota" element={<AdminAnggota />} />
+                <Route path="/admin/pembayaran-tiket" element={<AdminPembayaranTiket />} />
+                <Route path="/admin/tiket" element={<AdminTiket />} />
+                <Route path="/admin/reminder" element={<AdminReminder />} />
+                <Route path="/admin/humanity" element={<AdminHumanity />} />
+                <Route path="/admin/settings" element={<AdminSettings />} />
+              </Route>
             </Route>
           </Route>
         </Routes>

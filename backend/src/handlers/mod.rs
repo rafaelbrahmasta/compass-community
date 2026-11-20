@@ -14,3 +14,7 @@ pub mod news;
 pub mod contact;
 pub mod settings;
 pub mod dashboard;
+pub mod members;
+pub mod tickets_purchase;
+pub mod admin_tickets;
+pub mod admin_admins;

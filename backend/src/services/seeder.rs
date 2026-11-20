@@ -17,30 +17,85 @@ pub async fn run_seeder(pool: &PgPool, config: &Config) -> anyhow::Result<()> {
     seed_gallery(pool).await?;
     seed_agendas(pool).await?;
     seed_news(pool).await?;
+    seed_members(pool).await?;
     Ok(())
 }
 
 async fn seed_admin(pool: &PgPool, config: &Config) -> anyhow::Result<()> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM admins")
         .fetch_one(pool).await?;
-    if count > 0 { return Ok(()); }
 
     let salt = SaltString::generate(&mut OsRng);
-    let hash = Argon2::default()
-        .hash_password(config.admin_password.as_bytes(), &salt)
-        .map_err(|e| anyhow::anyhow!("Gagal hashing password admin: {}", e))?
-        .to_string();
 
-    sqlx::query(
-        "INSERT INTO admins (id, email, password_hash, name) VALUES ($1, $2, $3, $4)"
-    )
-    .bind(Uuid::new_v4())
-    .bind(&config.admin_email)
-    .bind(&hash)
-    .bind("Super Admin")
-    .execute(pool).await?;
+    if count == 0 {
+        let hash = Argon2::default()
+            .hash_password(config.admin_password.as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Gagal hashing password admin: {}", e))?
+            .to_string();
 
-    tracing::info!("Admin seeder: akun dibuat untuk {}", config.admin_email);
+        sqlx::query(
+            "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(Uuid::new_v4())
+        .bind(&config.admin_email)
+        .bind(&hash)
+        .bind("Super Admin")
+        .bind("super_admin")
+        .bind(true)
+        .execute(pool).await?;
+
+        tracing::info!("Admin seeder: akun super admin dibuat untuk {}", config.admin_email);
+    } else {
+        // Pastikan admin utama memiliki role super_admin dan aktif
+        sqlx::query("UPDATE admins SET role = 'super_admin', is_active = true WHERE email = $1")
+            .bind(&config.admin_email)
+            .execute(pool).await?;
+    }
+
+    // Seed admin_1 (Admin Konten 1)
+    let admin1_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin1@compass.id'")
+        .fetch_optional(pool).await?;
+    if admin1_exists.is_none() {
+        let hash1 = Argon2::default()
+            .hash_password("Admin1@compass123".as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_1: {}", e))?
+            .to_string();
+
+        sqlx::query(
+            "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(Uuid::new_v4())
+        .bind("admin1@compass.id")
+        .bind(&hash1)
+        .bind("Admin Konten 1")
+        .bind("admin_1")
+        .bind(true)
+        .execute(pool).await?;
+        tracing::info!("Admin seeder: akun admin_1 dibuat (admin1@compass.id)");
+    }
+
+    // Seed admin_2 (Admin Konten 2)
+    let admin2_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin2@compass.id'")
+        .fetch_optional(pool).await?;
+    if admin2_exists.is_none() {
+        let hash2 = Argon2::default()
+            .hash_password("Admin2@compass123".as_bytes(), &salt)
+            .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_2: {}", e))?
+            .to_string();
+
+        sqlx::query(
+            "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(Uuid::new_v4())
+        .bind("admin2@compass.id")
+        .bind(&hash2)
+        .bind("Admin Konten 2")
+        .bind("admin_2")
+        .bind(true)
+        .execute(pool).await?;
+        tracing::info!("Admin seeder: akun admin_2 dibuat (admin2@compass.id)");
+    }
+
     Ok(())
 }
 
@@ -303,5 +358,37 @@ async fn seed_news(pool: &PgPool) -> anyhow::Result<()> {
         .bind(Uuid::new_v4()).bind(title).bind(slug).bind(content).bind(summary).bind(author)
         .execute(pool).await?;
     }
+    Ok(())
+}
+
+async fn seed_members(pool: &PgPool) -> anyhow::Result<()> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM members").fetch_one(pool).await?;
+    if count > 0 { return Ok(()); }
+
+    let members = vec![
+        ("CMP-0001", "Bagus Prasetyo", "081234567891", Some("bagus@gmail.com")),
+        ("CMP-0002", "Dimas Wahyu", "081234567892", Some("dimas@gmail.com")),
+        ("CMP-0003", "Rizky Pratama", "081234567893", Some("rizky@gmail.com")),
+        ("CMP-0004", "Aditya Nugroho", "081234567894", Some("aditya@gmail.com")),
+        ("CMP-0005", "Farhan Saputra", "081234567895", Some("farhan@gmail.com")),
+    ];
+
+    for (code, name, phone, email) in members {
+        sqlx::query(
+            r#"INSERT INTO members (id, member_code, full_name, phone, email, is_active)
+               VALUES ($1, $2, $3, $4, $5, true)"#
+        )
+        .bind(Uuid::new_v4())
+        .bind(code)
+        .bind(name)
+        .bind(phone)
+        .bind(email)
+        .execute(pool).await?;
+    }
+
+    // Set sequence ke 5 agar ID berikutnya CMP-0006
+    let _ = sqlx::query("SELECT setval('member_code_seq', 5, true)").execute(pool).await;
+
+    tracing::info!("Member seeder: 5 data anggota awal berhasil dibuat");
     Ok(())
 }

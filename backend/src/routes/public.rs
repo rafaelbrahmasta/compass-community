@@ -24,5 +24,8 @@ pub fn public_routes(pool: PgPool, config: Config) -> Router {
         .route("/settings", get(handlers::settings::get_public_settings))
         .route("/contact", post(handlers::contact::send_message))
         .route("/auth/login", post(handlers::auth::login))
+        // Pembelian & Pengecekan Tiket Langsung (Revisi 6)
+        .route("/tickets/buy", post(handlers::tickets_purchase::buy_ticket))
+        .route("/tickets/check", get(handlers::tickets_purchase::check_ticket))
         .with_state((pool, config))
 }

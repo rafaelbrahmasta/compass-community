@@ -10,6 +10,8 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Tidak diotorisasi: {0}")]
     Unauthorized(String),
+    #[error("Akses ditolak: {0}")]
+    Forbidden(String),
     #[error("Tidak ditemukan: {0}")]
     NotFound(String),
     #[error("Permintaan tidak valid: {0}")]
@@ -26,6 +28,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Database(e) => {

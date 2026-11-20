@@ -1,9 +1,14 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import type { AdminRole } from '../../types'
 import LoadingSpinner from './LoadingSpinner'
 
-export default function ProtectedRoute() {
-  const { isAuthenticated, isLoading } = useAuth()
+interface ProtectedRouteProps {
+  allowedRoles?: AdminRole[]
+}
+
+export default function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
+  const { admin, isAuthenticated, isLoading } = useAuth()
 
   if (isLoading) {
     return (
@@ -13,5 +18,13 @@ export default function ProtectedRoute() {
     )
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/admin/login" replace />
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" replace />
+  }
+
+  if (allowedRoles && admin?.role && !allowedRoles.includes(admin.role)) {
+    return <Navigate to="/admin/dashboard" replace />
+  }
+
+  return <Outlet />
 }

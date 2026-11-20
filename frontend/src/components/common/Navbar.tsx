@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getSiteSettings } from '../../services/endpoints'
+import { Menu, X, Ticket } from 'lucide-react'
 
 const navLinks = [
   { to: '/', label: 'Home' },
@@ -17,6 +18,8 @@ const navLinks = [
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
+
   const { data: settingsData } = useQuery({
     queryKey: ['site-settings'],
     queryFn: getSiteSettings,
@@ -25,22 +28,46 @@ export default function Navbar() {
   const siteName = settingsData?.data?.data?.site_name || 'COMPASS'
   const logoUrl = settingsData?.data?.data?.logo_url
 
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setIsScrolled(true)
+      } else {
+        setIsScrolled(false)
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 bg-dark/95 backdrop-blur-md border-b border-gold/20">
+    <nav
+      className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
+        isScrolled
+          ? 'bg-[#060a08]/95 backdrop-blur-md shadow-xl shadow-black/70 border-b border-gold/30 py-1'
+          : 'bg-[#070b09]/80 backdrop-blur-sm border-b border-gold/15 py-2.5'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+        <div className="flex items-center justify-between h-14">
+          {/* Logo Brand */}
           <Link to="/" className="flex items-center gap-3 group">
             {logoUrl ? (
               <img src={logoUrl} alt={siteName} className="h-10 w-auto" />
             ) : (
-              <div className="w-10 h-10 bg-primary border-2 border-gold flex items-center justify-center rounded">
-                <span className="font-heading font-bold text-gold text-sm">C</span>
+              <div className="w-9 h-9 bg-primary border border-gold flex items-center justify-center rounded-lg shadow-sm group-hover:border-gold transition-colors">
+                <span className="font-heading font-black text-gold text-sm tracking-wider">CP</span>
               </div>
             )}
-            <span className="font-heading font-bold text-xl text-white group-hover:text-gold transition-colors uppercase tracking-wider">
-              {siteName}
-            </span>
+            <div className="flex flex-col">
+              <span className="font-heading font-black text-xl text-white group-hover:text-gold transition-colors uppercase tracking-widest leading-none">
+                {siteName}
+              </span>
+              <span className="text-[9px] text-gold/80 font-semibold tracking-[0.2em] uppercase mt-0.5">
+                PSS Sleman Fans
+              </span>
+            </div>
           </Link>
 
           {/* Desktop Nav */}
@@ -51,35 +78,49 @@ export default function Navbar() {
                 to={link.to}
                 end={link.to === '/'}
                 className={({ isActive }) =>
-                  `px-3 py-2 font-heading font-medium text-sm uppercase tracking-wide transition-colors ${
+                  `px-3 py-1.5 font-heading font-medium text-sm uppercase tracking-wide transition-all rounded-md ${
                     isActive
-                      ? 'text-gold border-b-2 border-gold'
-                      : 'text-white/80 hover:text-gold'
+                      ? 'text-gold bg-primary/40 border-b-2 border-gold font-bold shadow-sm'
+                      : 'text-white/80 hover:text-gold hover:bg-white/5'
                   }`
                 }
               >
                 {link.label}
               </NavLink>
             ))}
+
+            {/* Shortcut Cek Tiket */}
+            <Link
+              to="/tiket/cek"
+              className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gold/40 text-gold text-xs font-heading font-bold uppercase tracking-wider hover:bg-gold hover:text-dark transition-all duration-300"
+            >
+              <Ticket size={14} strokeWidth={1.5} />
+              <span>Cek Tiket</span>
+            </Link>
           </div>
 
-          {/* Hamburger */}
-          <button
-            className="lg:hidden text-white/80 hover:text-gold transition-colors p-2"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-label="Toggle menu"
-          >
-            <div className="w-6 h-5 flex flex-col justify-between">
-              <span className={`block h-0.5 bg-current transition-transform origin-center ${isOpen ? 'rotate-45 translate-y-2' : ''}`} />
-              <span className={`block h-0.5 bg-current transition-opacity ${isOpen ? 'opacity-0' : ''}`} />
-              <span className={`block h-0.5 bg-current transition-transform origin-center ${isOpen ? '-rotate-45 -translate-y-2' : ''}`} />
-            </div>
-          </button>
+          {/* Mobile Hamburger Button with Lucide */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <Link
+              to="/tiket/cek"
+              className="p-2 rounded-lg border border-gold/30 text-gold hover:bg-gold hover:text-dark transition-colors"
+              title="Cek Tiket Saya"
+            >
+              <Ticket size={18} strokeWidth={1.5} />
+            </Link>
+            <button
+              className="text-white/80 hover:text-gold transition-colors p-2 rounded-lg hover:bg-white/5"
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Toggle menu"
+            >
+              {isOpen ? <X size={24} strokeWidth={1.5} /> : <Menu size={24} strokeWidth={1.5} />}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu Dropdown */}
         {isOpen && (
-          <div className="lg:hidden border-t border-white/10 py-3 animate-fade-in">
+          <div className="lg:hidden border-t border-gold/20 py-3 mt-1 space-y-1 animate-fade-in bg-dark/95 backdrop-blur-lg rounded-b-xl px-2">
             {navLinks.map(link => (
               <NavLink
                 key={link.to}
@@ -87,8 +128,10 @@ export default function Navbar() {
                 end={link.to === '/'}
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) =>
-                  `block px-4 py-3 font-heading font-medium uppercase tracking-wide transition-colors ${
-                    isActive ? 'text-gold bg-primary/40' : 'text-white/80 hover:text-gold hover:bg-white/5'
+                  `block px-3.5 py-2.5 rounded-lg font-heading font-medium uppercase tracking-wide transition-all text-sm ${
+                    isActive
+                      ? 'text-gold bg-primary/50 border-l-4 border-gold font-bold'
+                      : 'text-white/80 hover:text-gold hover:bg-white/5'
                   }`
                 }
               >

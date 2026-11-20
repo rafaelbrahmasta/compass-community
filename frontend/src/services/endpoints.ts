@@ -81,16 +81,23 @@ export const getSiteSettings = () =>
 export const sendContactMessage = (data: ContactMessageRequest) =>
   api.post<ApiResponse<{ id: string }>>('/contact', data)
 
+// Direct Ticket Purchase & Check
+export const buyTicket = (data: import('../types').BuyTicketPayload) =>
+  api.post<ApiResponse<import('../types').BuyTicketResult>>('/tickets/buy', data)
+
+export const checkTicket = (params: { ticket_code?: string; member_code?: string; phone?: string }) =>
+  api.get<ApiResponse<import('../types').TicketPurchase[]>>('/tickets/check', { params })
+
 // ============================================================
 // ADMIN ENDPOINTS
 // ============================================================
 
 // Auth
 export const adminLogin = (email: string, password: string) =>
-  api.post<ApiResponse<{ token: string; admin: { id: string; email: string; name: string } }>>('/auth/login', { email, password })
+  api.post<ApiResponse<{ token: string; admin: import('../types').Admin }>>('/auth/login', { email, password })
 
 export const getAdminProfile = () =>
-  api.get<ApiResponse<{ id: string; email: string; name: string }>>('/auth/me')
+  api.get<ApiResponse<import('../types').Admin>>('/auth/me')
 
 export const changePassword = (data: { current_password: string; new_password: string }) =>
   api.put<ApiResponse<null>>('/auth/password', data)
@@ -255,3 +262,52 @@ export const adminUploadLogo = (file: File) => {
   const form = new FormData(); form.append('image', file)
   return api.post<ApiResponse<{ logo_url: string }>>('/admin/settings/logo', form, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
+
+// ============================================================
+// ADMIN: MEMBERS, TICKET ORDERS & ADMINS MANAGEMENT (SUPER_ADMIN)
+// ============================================================
+
+// Admin Members
+export const adminGetMembers = (params?: { q?: string; page?: number; per_page?: number }) =>
+  api.get<ApiResponse<PaginatedData<import('../types').Member>>>('/admin/members', { params })
+
+export const adminGetMemberById = (id: string) =>
+  api.get<ApiResponse<import('../types').Member>>(`/admin/members/${id}`)
+
+export const adminCreateMember = (data: { full_name: string; phone: string; email?: string; is_active?: boolean }) =>
+  api.post<ApiResponse<import('../types').Member>>('/admin/members', data)
+
+export const adminUpdateMember = (id: string, data: { full_name: string; phone: string; email?: string; is_active: boolean }) =>
+  api.put<ApiResponse<import('../types').Member>>(`/admin/members/${id}`, data)
+
+export const adminDeleteMember = (id: string) =>
+  api.delete<ApiResponse<null>>(`/admin/members/${id}`)
+
+export const adminImportMembersCsv = (csv_content: string) =>
+  api.post<ApiResponse<{ success_count: number; error_count: number; errors: string[] }>>('/admin/members/import-csv', { csv_content })
+
+// Admin Tickets (Purchases & Check-in)
+export const adminGetTicketPurchases = (params?: { match_id?: string; status?: string; q?: string; page?: number; per_page?: number }) =>
+  api.get<ApiResponse<PaginatedData<import('../types').TicketPurchase>>>('/admin/tickets', { params })
+
+export const adminUpdateTicketStatus = (id: string, data: { status: string; notes?: string }) =>
+  api.put<ApiResponse<import('../types').TicketPurchase>>(`/admin/tickets/${id}/status`, data)
+
+export const adminCheckinTicket = (code_or_payload: string) =>
+  api.post<ApiResponse<{ ticket_code: string; full_name: string; member_code: string; opponent_name: string; category_name: string; stadium: string }>>('/admin/tickets/checkin', { code_or_payload })
+
+// Admin Admins Management
+export const adminGetAdmins = () =>
+  api.get<ApiResponse<import('../types').Admin[]>>('/admin/admins')
+
+export const adminCreateAdmin = (data: { email: string; password: string; name: string; role: string }) =>
+  api.post<ApiResponse<import('../types').Admin>>('/admin/admins', data)
+
+export const adminUpdateAdmin = (id: string, data: { name: string; role: string; is_active: boolean }) =>
+  api.put<ApiResponse<import('../types').Admin>>(`/admin/admins/${id}`, data)
+
+export const adminResetAdminPassword = (id: string, new_password: string) =>
+  api.put<ApiResponse<null>>(`/admin/admins/${id}/reset-password`, { new_password })
+
+export const adminDeleteAdmin = (id: string) =>
+  api.delete<ApiResponse<null>>(`/admin/admins/${id}`)

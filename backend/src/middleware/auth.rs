@@ -24,6 +24,10 @@ pub async fn auth_middleware(
     let claims = verify_token(token)
         .map_err(|_| AppError::Unauthorized("Token tidak valid atau sudah kedaluwarsa".into()))?;
 
+    // Cek apakah admin is_active (role dibawa di claims, is_active perlu dicek dari DB)
+    // Untuk efisiensi, cek is_active hanya di endpoint sensitif. Di sini kita trust claims.
+    // Middleware role diimplementasikan terpisah.
+
     request.extensions_mut().insert(claims);
     Ok(next.run(request).await)
 }

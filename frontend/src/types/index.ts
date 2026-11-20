@@ -17,10 +17,92 @@ export interface PaginatedData<T> {
 }
 
 // --- Auth ---
+export type AdminRole = 'super_admin' | 'admin_1' | 'admin_2'
+
 export interface Admin {
   id: string
   email: string
   name: string
+  role: AdminRole
+  is_active?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface Member {
+  id: string
+  member_code: string
+  full_name: string
+  phone: string
+  email: string | null
+  is_active: boolean
+  ticket_count?: number
+  created_at: string
+  updated_at: string
+}
+
+export type TicketPurchaseStatus = 'menunggu_pembayaran' | 'lunas' | 'dibatalkan' | 'sudah_checkin'
+
+export interface TicketPurchase {
+  id: string
+  ticket_code: string
+  status: TicketPurchaseStatus
+  price: string | number
+  qr_payload: string
+  notes: string | null
+  created_at: string
+  paid_at: string | null
+  checked_in_at: string | null
+  expires_at: string
+  member_id?: string
+  member_code: string
+  full_name: string
+  phone: string
+  email?: string | null
+  match_id?: string
+  opponent_name: string
+  opponent_logo_url?: string | null
+  match_date: string
+  match_time: string
+  stadium: string
+  home_away?: string
+  competition?: string
+  category_id?: string
+  category_name: string
+}
+
+export interface BuyTicketPayload {
+  match_id: string
+  category_id: string
+  member_code: string
+  phone: string
+  notes?: string
+}
+
+export interface BuyTicketResult {
+  ticket_code: string
+  qr_payload: string
+  status: string
+  price: string | number
+  expires_at: string
+  member: {
+    member_code: string
+    full_name: string
+    phone: string
+  }
+  match_info: {
+    opponent_name: string
+    match_date: string
+    match_time: string
+    stadium: string
+    home_away: string
+  }
+  category_name: string
+  bank_info: {
+    bank_name: string
+    account_name: string
+    account_number: string
+  }
 }
 
 export interface LoginRequest {

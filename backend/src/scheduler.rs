@@ -22,8 +22,51 @@ pub async fn start_scheduler(pool: PgPool, config: Config) -> anyhow::Result<()>
         })
     })?).await?;
 
+    // Cek pembatalan tiket expired setiap 5 menit
+    let pool_cancel = pool.clone();
+    sched.add(Job::new_async("0 */5 * * * *", move |_, _| {
+        let pool = pool_cancel.clone();
+        Box::pin(async move {
+            if let Err(e) = cancel_expired_tickets(&pool).await {
+                tracing::error!("Error scheduler pembatalan tiket expired: {}", e);
+            }
+        })
+    })?).await?;
+
     sched.start().await?;
-    tracing::info!("Scheduler email reminder aktif");
+    tracing::info!("Scheduler email reminder & pembatalan tiket aktif");
+
+    Ok(())
+}
+
+#[derive(sqlx::FromRow)]
+struct ExpiredTicket {
+    id: uuid::Uuid,
+    category_id: uuid::Uuid,
+}
+
+async fn cancel_expired_tickets(pool: &PgPool) -> anyhow::Result<()> {
+    let expired: Vec<ExpiredTicket> = sqlx::query_as::<_, ExpiredTicket>(
+        r#"UPDATE ticket_purchases
+           SET status = 'dibatalkan',
+               notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena batas waktu pembayaran 24 jam berakhir'
+           WHERE status = 'menunggu_pembayaran' AND expires_at <= NOW()
+           RETURNING id, category_id"#
+    )
+    .fetch_all(pool)
+    .await?;
+
+    if !expired.is_empty() {
+        tracing::info!("Scheduler: {} tiket kedaluwarsa otomatis dibatalkan", expired.len());
+        for item in expired {
+            let _ = sqlx::query(
+                "UPDATE ticket_categories SET sold = GREATEST(0, sold - 1) WHERE id = $1"
+            )
+            .bind(item.category_id)
+            .execute(pool)
+            .await;
+        }
+    }
 
     Ok(())
 }
