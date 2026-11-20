@@ -1,0 +1,85 @@
+use axum::{Router, routing::{get, post, put, delete}};
+use sqlx::PgPool;
+use crate::config::Config;
+use crate::handlers;
+
+pub fn admin_routes(pool: PgPool, config: Config) -> Router {
+    Router::new()
+        // Auth
+        .route("/auth/me", get(handlers::auth::me))
+        .route("/auth/password", put(handlers::auth::change_password))
+        // Dashboard
+        .route("/admin/dashboard", get(handlers::dashboard::get_stats))
+        // Carousel
+        .route("/admin/carousel", get(handlers::carousel::admin_get_slides))
+        .route("/admin/carousel", post(handlers::carousel::create_slide))
+        .route("/admin/carousel/:id", put(handlers::carousel::update_slide))
+        .route("/admin/carousel/:id", delete(handlers::carousel::delete_slide))
+        .route("/admin/carousel/:id/image", post(handlers::carousel::upload_slide_image))
+        // About
+        .route("/admin/about", put(handlers::about::update_about))
+        .route("/admin/team-members", get(handlers::about::get_team_members))
+        .route("/admin/team-members", post(handlers::about::create_team_member))
+        .route("/admin/team-members/:id", put(handlers::about::update_team_member))
+        .route("/admin/team-members/:id", delete(handlers::about::delete_team_member))
+        // History
+        .route("/admin/history", get(handlers::history::get_history))
+        .route("/admin/history", post(handlers::history::create_history))
+        .route("/admin/history/:id", put(handlers::history::update_history))
+        .route("/admin/history/:id", delete(handlers::history::delete_history))
+        // Humanity
+        .route("/admin/humanity", get(handlers::humanity::admin_get_humanity))
+        .route("/admin/humanity", put(handlers::humanity::update_humanity))
+        .route("/admin/humanity/qr", post(handlers::humanity::upload_qr))
+        // Matches
+        .route("/admin/matches", get(handlers::matches::admin_get_matches))
+        .route("/admin/matches", post(handlers::matches::create_match))
+        .route("/admin/matches/import-csv", post(handlers::matches::import_csv))
+        .route("/admin/matches/:id", put(handlers::matches::update_match))
+        .route("/admin/matches/:id", delete(handlers::matches::delete_match))
+        // Tickets
+        .route("/admin/matches/:id/tickets", get(handlers::tickets::admin_get_tickets))
+        .route("/admin/matches/:id/tickets", post(handlers::tickets::create_ticket))
+        .route("/admin/matches/:id/tickets/:tid", put(handlers::tickets::update_ticket))
+        .route("/admin/matches/:id/tickets/:tid", delete(handlers::tickets::delete_ticket))
+        // Reminders
+        .route("/admin/reminders", get(handlers::reminders::admin_get_reminders))
+        // Merch Categories
+        .route("/admin/merch/categories", get(handlers::merch::admin_get_categories))
+        .route("/admin/merch/categories", post(handlers::merch::create_category))
+        .route("/admin/merch/categories/:id", put(handlers::merch::update_category))
+        .route("/admin/merch/categories/:id", delete(handlers::merch::delete_category))
+        // Merch Products
+        .route("/admin/merch/products", get(handlers::merch::admin_get_products))
+        .route("/admin/merch/products", post(handlers::merch::create_product))
+        .route("/admin/merch/products/:id", put(handlers::merch::update_product))
+        .route("/admin/merch/products/:id", delete(handlers::merch::delete_product))
+        .route("/admin/merch/products/:id/images", post(handlers::merch::upload_product_image))
+        .route("/admin/merch/images/:id", delete(handlers::merch::delete_product_image))
+        // Gallery
+        .route("/admin/gallery/albums", get(handlers::gallery::admin_get_albums))
+        .route("/admin/gallery/albums", post(handlers::gallery::create_album))
+        .route("/admin/gallery/albums/:id", put(handlers::gallery::update_album))
+        .route("/admin/gallery/albums/:id", delete(handlers::gallery::delete_album))
+        .route("/admin/gallery/albums/:id/photos", post(handlers::gallery::upload_photos))
+        .route("/admin/gallery/photos/:id", delete(handlers::gallery::delete_photo))
+        // Agendas
+        .route("/admin/agendas", get(handlers::agendas::admin_get_agendas))
+        .route("/admin/agendas", post(handlers::agendas::create_agenda))
+        .route("/admin/agendas/:id", put(handlers::agendas::update_agenda))
+        .route("/admin/agendas/:id", delete(handlers::agendas::delete_agenda))
+        // News
+        .route("/admin/news", get(handlers::news::admin_get_news))
+        .route("/admin/news", post(handlers::news::create_news))
+        .route("/admin/news/:id", put(handlers::news::update_news))
+        .route("/admin/news/:id", delete(handlers::news::delete_news))
+        .route("/admin/news/:id/thumbnail", post(handlers::news::upload_thumbnail))
+        // Contact Messages
+        .route("/admin/contact-messages", get(handlers::contact::get_messages))
+        .route("/admin/contact-messages/:id/read", put(handlers::contact::mark_read))
+        // Settings
+        .route("/admin/settings", get(handlers::settings::admin_get_settings))
+        .route("/admin/settings", put(handlers::settings::update_settings))
+        .route("/admin/settings/logo", post(handlers::settings::upload_logo))
+        .with_state((pool, config))
+}
