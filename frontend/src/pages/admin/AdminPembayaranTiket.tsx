@@ -24,6 +24,7 @@ import {
   adminCheckinTicket,
   getMatches,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import type { TicketPurchase, Match } from '../../types'
 
 export default function AdminPembayaranTiket() {
@@ -569,7 +570,7 @@ export default function AdminPembayaranTiket() {
         <div className="text-center p-2">
           {selectedProofUrl ? (
             <img
-              src={selectedProofUrl}
+              src={getAssetUrl(selectedProofUrl)}
               alt="Bukti Transfer"
               className="max-h-[70vh] mx-auto rounded-xl object-contain border border-white/10 shadow-lg"
             />

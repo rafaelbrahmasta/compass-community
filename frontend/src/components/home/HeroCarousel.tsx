@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Ticket, Users } from 'lucide-react'
 import type { CarouselSlide } from '../../types'
+import { getAssetUrl } from '../../services/api'
 
 interface HeroCarouselProps {
   slides: CarouselSlide[]
@@ -73,7 +74,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
     >
       {/* Slides */}
       {activeSlides.map((slide, index) => {
-        const imageUrl = slide.image_url ? slide.image_url : defaultImages[index % defaultImages.length]
+        const imageUrl = slide.image_url ? getAssetUrl(slide.image_url) : defaultImages[index % defaultImages.length]
         const isActive = index === current
 
         return (
