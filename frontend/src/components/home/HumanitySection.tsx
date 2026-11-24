@@ -16,11 +16,14 @@ export default function HumanitySection({ settings }: HumanitySectionProps) {
     'Compass for Humanity adalah inisiatif sosial dari keluarga besar COMPASS yang berfokus pada aksi kemanusiaan, bakti sosial, dan pemberdayaan masyarakat. Kami percaya cinta pada sepak bola harus berbanding lurus dengan kepedulian terhadap sesama.'
 
   const qrImageUrl = settings?.qr_image_url
-  const bankName = settings?.bank_name || 'BCA'
+  const bankName = settings?.bank_name || 'Bank Rekening Resmi'
   const accountName = settings?.account_name || 'COMPASS PSS Sleman'
-  const accountNumber = settings?.account_number || '123-456-7890'
+  const rawAccountNumber = settings?.account_number
+  const isDummyAccount = !rawAccountNumber || rawAccountNumber === '123-456-7890'
+  const accountNumber = isDummyAccount ? null : rawAccountNumber
 
   const copyAccountNumber = () => {
+    if (!accountNumber) return
     navigator.clipboard.writeText(accountNumber)
     toast.success('Nomor rekening berhasil disalin!')
   }
@@ -54,7 +57,7 @@ export default function HumanitySection({ settings }: HumanitySectionProps) {
                   <ArrowRight size={16} strokeWidth={1.5} />
                 </button>
                 <span className="text-white/50 text-xs sm:text-sm">
-                  100% donasi disalurkan untuk aksi kemanusiaan
+                  Laporan pertanggungjawaban donasi dirilis berkala oleh pengurus COMPASS
                 </span>
               </div>
             </div>
@@ -82,15 +85,21 @@ export default function HumanitySection({ settings }: HumanitySectionProps) {
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10 flex justify-between items-center">
                   <div>
                     <div className="text-white/50 text-xs uppercase font-medium">Nomor Rekening</div>
-                    <div className="font-mono font-black text-gold text-lg tracking-wider">{accountNumber}</div>
+                    {accountNumber ? (
+                      <div className="font-mono font-black text-gold text-lg tracking-wider">{accountNumber}</div>
+                    ) : (
+                      <div className="text-white/70 text-xs mt-1 italic">Hubungi kontak resmi sekretariat untuk penyaluran</div>
+                    )}
                   </div>
-                  <button
-                    onClick={copyAccountNumber}
-                    className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-dark hover:bg-gold border border-white/20 hover:border-gold px-3 py-1.5 rounded-lg transition-all"
-                  >
-                    <Copy size={13} strokeWidth={1.5} />
-                    <span>Salin</span>
-                  </button>
+                  {accountNumber && (
+                    <button
+                      onClick={copyAccountNumber}
+                      className="inline-flex items-center gap-1.5 text-xs text-white/70 hover:text-dark hover:bg-gold border border-white/20 hover:border-gold px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      <Copy size={13} strokeWidth={1.5} />
+                      <span>Salin</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="p-4 bg-white/5 rounded-xl border border-white/10">
@@ -138,15 +147,21 @@ export default function HumanitySection({ settings }: HumanitySectionProps) {
             <div className="flex justify-between items-center">
               <span className="text-white/50 text-xs">No. Rekening:</span>
               <div className="flex items-center gap-2">
-                <span className="text-gold font-mono font-bold">{accountNumber}</span>
-                <button
-                  type="button"
-                  onClick={copyAccountNumber}
-                  className="text-white/60 hover:text-gold"
-                  title="Salin"
-                >
-                  <Copy size={13} strokeWidth={1.5} />
-                </button>
+                {accountNumber ? (
+                  <>
+                    <span className="text-gold font-mono font-bold">{accountNumber}</span>
+                    <button
+                      type="button"
+                      onClick={copyAccountNumber}
+                      className="text-white/60 hover:text-gold"
+                      title="Salin"
+                    >
+                      <Copy size={13} strokeWidth={1.5} />
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-white/60 text-xs italic">Menghubungi Sekretariat</span>
+                )}
               </div>
             </div>
             <div className="flex justify-between items-center">

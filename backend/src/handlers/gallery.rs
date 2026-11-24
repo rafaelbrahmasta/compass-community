@@ -69,11 +69,16 @@ pub async fn upload_photos(
     let mut sort_base: i32 = sqlx::query_scalar("SELECT COALESCE(MAX(sort_order), 0) FROM gallery_photos WHERE album_id = $1")
         .bind(album_id).fetch_one(&pool).await.unwrap_or(0);
 
-    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
-        if field.name() == Some("photos") {
+    let mut current_caption = String::new();
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(format!("Format form upload tidak valid: {}", e)))? {
+        let field_name = field.name().unwrap_or("").to_string();
+        if field_name == "caption" {
+            current_caption = field.text().await.unwrap_or_default();
+        } else if field_name == "photos" || field_name == "photo" || field_name == "file" {
             let ct = field.content_type().unwrap_or("image/jpeg").to_string();
-            let caption = String::new();
-            let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            let caption = current_caption.clone();
+            let data = field.bytes().await.map_err(|e| AppError::BadRequest(format!("Gagal membaca data file: {}", e)))?;
             if data.is_empty() { continue; }
             let url = crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?;
             sort_base += 1;
@@ -82,9 +87,10 @@ pub async fn upload_photos(
             ).bind(Uuid::new_v4()).bind(album_id).bind(&url).bind(&caption).bind(sort_base)
             .fetch_one(&pool).await?;
             uploaded.push(photo);
+            current_caption.clear();
         }
     }
-    Ok(ok("Foto diupload", uploaded))
+    Ok(ok("Foto berhasil diupload", uploaded))
 }
 
 pub async fn delete_photo(State((pool, _config)): State<(PgPool, Config)>, Path(id): Path<Uuid>) -> AppResult<impl axum::response::IntoResponse> {

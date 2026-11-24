@@ -124,8 +124,9 @@ export default function AdminMerch() {
       queryClient.invalidateQueries({ queryKey: ['admin-merch-products'] })
       queryClient.invalidateQueries({ queryKey: ['merch-products'] })
       setProductModalOpen(false)
-    } catch {
-      toast.error('Gagal menyimpan produk.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menyimpan produk.')
     } finally {
       setSubmitting(false)
     }
@@ -181,8 +182,9 @@ export default function AdminMerch() {
       queryClient.invalidateQueries({ queryKey: ['merch-products'] })
       setImageFile(null)
       setImageModalOpen(false)
-    } catch {
-      toast.error('Gagal mengunggah foto produk.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal mengunggah foto produk.')
     } finally {
       setSubmitting(false)
     }

@@ -404,14 +404,18 @@ function MatchTicketCard({
         {/* Opponent Info */}
         <div className="flex items-center justify-between gap-4 py-2">
           <div className="text-center sm:text-left flex-1">
-            <div className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">Tuan Rumah</div>
+            <div className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">
+              {match.home_away === 'home' ? 'Tuan Rumah' : 'Tim Tamu'}
+            </div>
             <div className="font-heading font-black text-2xl text-white mt-1 tracking-wide">PSS SLEMAN</div>
           </div>
           <div className="w-10 h-10 rounded-full bg-gold/10 border border-gold/40 flex items-center justify-center font-heading font-bold text-gold text-sm shrink-0">
             VS
           </div>
           <div className="text-center sm:text-right flex-1">
-            <div className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">Tim Tamu</div>
+            <div className="text-white/40 text-[11px] uppercase tracking-wider font-semibold">
+              {match.home_away === 'home' ? 'Tim Tamu' : 'Tuan Rumah'}
+            </div>
             <div className="font-heading font-black text-2xl text-gold mt-1 uppercase tracking-wide truncate">
               {match.opponent_name}
             </div>

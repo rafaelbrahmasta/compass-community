@@ -49,7 +49,24 @@ export default function MerchandiseDetail() {
 
   const currentDisplayImage = selectedImage || defaultImage
   const sizes = Array.isArray(product.sizes) ? product.sizes : []
-  const orderUrl = product.order_form_url || settings?.merch_global_form_url || 'https://forms.google.com'
+  const rawOrderUrl = product.order_form_url || settings?.merch_global_form_url || ''
+  const isGenericForm = !rawOrderUrl || rawOrderUrl.includes('forms.google.com')
+
+  // Buat link WhatsApp langsung dengan pesan otomatis membawa detail produk & ukuran
+  const waNumber = (settings?.contact_whatsapp || '+6281234567890').replace(/\D/g, '')
+  const sizeText = selectedSize ? `Ukuran: ${selectedSize}` : 'Ukuran: (Belum dipilih / All Size)'
+  const waMessage = encodeURIComponent(
+    `Halo Admin Official Merch COMPASS,\n` +
+    `Saya ingin memesan merchandise:\n` +
+    `• Produk: ${product.name}\n` +
+    `• ${sizeText}\n` +
+    `• Harga: Rp ${Number(product.price).toLocaleString('id-ID')}\n\n` +
+    `Mohon informasi ketersediaan stok dan prosedur pembayarannya. Terima kasih!`
+  )
+  const waOrderUrl = `https://wa.me/${waNumber}?text=${waMessage}`
+
+  // Jika admin mengisi Google Form spesifik produk, gunakan URL tersebut. Jika tidak, gunakan WhatsApp resmi.
+  const finalOrderUrl = isGenericForm ? waOrderUrl : rawOrderUrl
 
   return (
     <div className="py-12 md:py-16 animate-fade-in">
@@ -169,12 +186,12 @@ export default function MerchandiseDetail() {
             {/* Order CTA Button */}
             <div className="pt-2">
               <a
-                href={orderUrl}
+                href={finalOrderUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full btn-gold rounded-xl py-4 flex items-center justify-center gap-3 text-base font-bold shadow-xl text-center"
               >
-                <span>Pesan Sekarang Lewat Form</span>
+                <span>{isGenericForm ? 'Pesan Sekarang Lewat WhatsApp' : 'Pesan Sekarang Lewat Formulir'}</span>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>

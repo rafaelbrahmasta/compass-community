@@ -47,7 +47,10 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
       />
 
       {/* Modal Content */}
-      <div className={`relative w-full ${sizeClasses[size]} bg-dark-card border border-gold/30 rounded-lg shadow-2xl animate-slide-up`}>
+      <div
+        tabIndex={-1}
+        className={`relative w-full ${sizeClasses[size]} bg-dark-card border border-gold/30 rounded-lg shadow-2xl animate-slide-up focus:outline-none`}
+      >
         {/* Header */}
         {title && (
           <div className="flex items-center justify-between p-5 border-b border-white/10">

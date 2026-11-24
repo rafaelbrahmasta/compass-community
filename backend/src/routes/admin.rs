@@ -29,6 +29,7 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/team-members", get(handlers::about::get_team_members))
         .route("/admin/team-members", post(handlers::about::create_team_member))
         .route("/admin/team-members/:id", put(handlers::about::update_team_member))
+        .route("/admin/team-members/:id/photo", post(handlers::about::update_team_member_photo))
         .route("/admin/team-members/:id", delete(handlers::about::delete_team_member))
         // History
         .route("/admin/history", get(handlers::history::get_history))

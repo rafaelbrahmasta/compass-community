@@ -27,6 +27,8 @@ export default function AdminSettings() {
   const [instagramUrl, setInstagramUrl] = useState('')
   const [twitterUrl, setTwitterUrl] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [facebookUrl, setFacebookUrl] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
   const [merchGlobalFormUrl, setMerchGlobalFormUrl] = useState('')
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -44,6 +46,8 @@ export default function AdminSettings() {
         setInstagramUrl(settings.instagram_url || '')
         setTwitterUrl(settings.twitter_url || '')
         setYoutubeUrl(settings.youtube_url || '')
+        setFacebookUrl(settings.facebook_url || '')
+        setTiktokUrl(settings.tiktok_url || '')
         setMerchGlobalFormUrl(settings.merch_global_form_url || '')
       }, 0)
     }
@@ -64,6 +68,8 @@ export default function AdminSettings() {
         instagram_url: instagramUrl,
         twitter_url: twitterUrl,
         youtube_url: youtubeUrl,
+        facebook_url: facebookUrl,
+        tiktok_url: tiktokUrl,
         merch_global_form_url: merchGlobalFormUrl,
       })
 
@@ -176,13 +182,14 @@ export default function AdminSettings() {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Instagram URL</label>
               <input
                 type="url"
                 value={instagramUrl}
                 onChange={e => setInstagramUrl(e.target.value)}
+                placeholder="https://instagram.com/..."
                 className="w-full bg-dark border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gold text-xs"
               />
             </div>
@@ -192,6 +199,7 @@ export default function AdminSettings() {
                 type="url"
                 value={twitterUrl}
                 onChange={e => setTwitterUrl(e.target.value)}
+                placeholder="https://twitter.com/..."
                 className="w-full bg-dark border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gold text-xs"
               />
             </div>
@@ -201,6 +209,27 @@ export default function AdminSettings() {
                 type="url"
                 value={youtubeUrl}
                 onChange={e => setYoutubeUrl(e.target.value)}
+                placeholder="https://youtube.com/..."
+                className="w-full bg-dark border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gold text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Facebook URL</label>
+              <input
+                type="url"
+                value={facebookUrl}
+                onChange={e => setFacebookUrl(e.target.value)}
+                placeholder="https://facebook.com/..."
+                className="w-full bg-dark border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gold text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">TikTok URL</label>
+              <input
+                type="url"
+                value={tiktokUrl}
+                onChange={e => setTiktokUrl(e.target.value)}
+                placeholder="https://tiktok.com/@..."
                 className="w-full bg-dark border border-white/20 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-gold text-xs"
               />
             </div>

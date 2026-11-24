@@ -58,10 +58,16 @@ export default function AdminAccount() {
           {admin?.name?.charAt(0).toUpperCase() || 'A'}
         </div>
         <div>
-          <div className="text-white font-bold text-base">{admin?.name || 'Super Admin'}</div>
+          <div className="text-white font-bold text-base">{admin?.name || 'Administrator'}</div>
           <div className="text-white/50 text-xs font-mono">{admin?.email || 'admin@compass.id'}</div>
-          <span className="inline-block px-2 py-0.5 bg-primary text-gold text-[10px] font-bold rounded mt-1.5 uppercase tracking-wider">
-            Super Administrator
+          <span className="inline-block px-2.5 py-0.5 bg-primary border border-gold/40 text-gold text-[10px] font-bold rounded mt-1.5 uppercase tracking-wider">
+            {admin?.role === 'super_admin'
+              ? 'Super Administrator'
+              : admin?.role === 'admin_1'
+              ? 'Admin Konten 1'
+              : admin?.role === 'admin_2'
+              ? 'Admin Konten 2'
+              : 'Administrator'}
           </span>
         </div>
       </div>

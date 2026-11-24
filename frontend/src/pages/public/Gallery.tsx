@@ -29,17 +29,7 @@ export default function Gallery() {
 
   const photos: GalleryPhoto[] = photosData?.data?.data || []
 
-  // Fallback demo photos jika album belum memiliki upload foto
-  const displayPhotos = photos.length > 0 ? photos : [
-    { id: '1', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&q=80', caption: 'Semangat Tribun Maguwoharjo', sort_order: 1, created_at: '' },
-    { id: '2', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&q=80', caption: 'Koreografi Supercan 2027', sort_order: 2, created_at: '' },
-    { id: '3', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?auto=format&fit=crop&w=1200&q=80', caption: 'Away Day Bersama Keluarga Besar COMPASS', sort_order: 3, created_at: '' },
-    { id: '4', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&q=80', caption: 'Aksi Nyata Compass for Humanity', sort_order: 4, created_at: '' },
-    { id: '5', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1200&q=80', caption: 'Kopdar dan Diskusi Suporter', sort_order: 5, created_at: '' },
-    { id: '6', album_id: 'default', image_url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=1200&q=80', caption: 'Euforia Kemenangan Elang Jawa', sort_order: 6, created_at: '' },
-  ]
-
-  const slides = displayPhotos.map(p => ({
+  const slides = photos.map(p => ({
     src: p.image_url,
     title: p.caption || 'Dokumentasi COMPASS',
   }))
@@ -94,9 +84,15 @@ export default function Gallery() {
           <div className="min-h-[40vh] flex items-center justify-center">
             <LoadingSpinner size="lg" />
           </div>
+        ) : photos.length === 0 ? (
+          <div className="card-dark p-12 text-center max-w-md mx-auto rounded-2xl border-white/10">
+            <span className="text-4xl mb-3 block">📸</span>
+            <h3 className="font-heading font-bold text-lg text-white">Album Belum Memiliki Foto</h3>
+            <p className="text-white/60 text-sm mt-1">Dokumentasi kegiatan akan segera diunggah oleh tim media COMPASS.</p>
+          </div>
         ) : (
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-            {displayPhotos.map((photo, index) => (
+            {photos.map((photo, index) => (
               <div
                 key={photo.id || index}
                 onClick={() => handleOpenPhoto(index)}

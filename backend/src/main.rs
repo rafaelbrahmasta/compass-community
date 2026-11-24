@@ -97,7 +97,7 @@ async fn build_app(
         // Layer Security Headers (CSP, X-Frame-Options, X-Content-Type-Options)
         .layer(from_fn(security_headers_middleware))
         .layer(TraceLayer::new_for_http())
-        .layer(DefaultBodyLimit::max(12 * 1024 * 1024)) // 12 MB body limit untuk upload gambar
+        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB body limit untuk upload galeri multi-foto dan media
         .layer(cors);
 
     Ok(app)

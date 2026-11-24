@@ -149,7 +149,10 @@ export default function AdminAbout() {
     try {
       if (editingMember) {
         await adminUpdateTeamMember(editingMember.id, { name, position, sort_order: sortOrder })
-        toast.success('Data pengurus diperbarui!')
+        if (memberPhotoFile) {
+          await import('../../services/endpoints').then(m => m.adminUpdateTeamMemberPhoto(editingMember.id, memberPhotoFile))
+        }
+        toast.success('Data pengurus & foto berhasil diperbarui!')
       } else {
         const form = new FormData()
         form.append('name', name)
@@ -162,8 +165,9 @@ export default function AdminAbout() {
       queryClient.invalidateQueries({ queryKey: ['admin-about-data'] })
       queryClient.invalidateQueries({ queryKey: ['public-about'] })
       setModalOpen(false)
-    } catch {
-      toast.error('Gagal menyimpan pengurus.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menyimpan pengurus.')
     } finally {
       setSavingMember(false)
     }
@@ -433,17 +437,23 @@ export default function AdminAbout() {
             />
           </div>
 
-          {!editingMember && (
-            <div>
-              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Foto Pengurus</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={e => setMemberPhotoFile(e.target.files?.[0] || null)}
-                className="w-full text-xs text-white/70 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-gold"
-              />
-            </div>
-          )}
+          <div>
+            <label className="block text-white/70 text-xs font-semibold uppercase mb-1">
+              {editingMember ? 'Ganti Foto Pengurus (Opsional)' : 'Foto Pengurus'}
+            </label>
+            {editingMember && editingMember.photo_url && (
+              <div className="flex items-center gap-3 mb-2 p-2 bg-dark-surface/50 rounded-lg border border-white/10">
+                <img src={editingMember.photo_url} alt={editingMember.name} className="w-12 h-12 object-cover rounded-md" />
+                <span className="text-xs text-white/60">Foto profil saat ini. Pilih file baru di bawah jika ingin menggantinya.</span>
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => setMemberPhotoFile(e.target.files?.[0] || null)}
+              className="w-full text-xs text-white/70 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-gold"
+            />
+          </div>
 
           <div className="pt-3 flex justify-end gap-2">
             <button type="button" onClick={() => setModalOpen(false)} className="btn-outline-gold py-2 px-4 rounded text-xs">

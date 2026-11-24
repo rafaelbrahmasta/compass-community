@@ -1,16 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getAgendas } from '../../services/endpoints'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
-
-const months = [
-  { value: '', label: 'Semua Bulan' },
-  { value: '2027-01', label: 'Januari 2027' },
-  { value: '2027-02', label: 'Februari 2027' },
-  { value: '2027-03', label: 'Maret 2027' },
-  { value: '2027-04', label: 'April 2027' },
-  { value: '2027-05', label: 'Mei 2027' },
-]
 
 export default function Agenda() {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -21,6 +12,31 @@ export default function Agenda() {
   })
 
   const agendas = data?.data?.data || []
+
+  // Generate dynamic month list based on current year
+  const months = useMemo(() => {
+    const list = [{ value: '', label: 'Semua Bulan' }]
+    const currentYear = new Date().getFullYear()
+    const monthNames = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ]
+
+    const seen = new Set<string>()
+    for (let y = currentYear; y <= currentYear + 1; y++) {
+      for (let m = 1; m <= 12; m++) {
+        const val = `${y}-${String(m).padStart(2, '0')}`
+        if (!seen.has(val)) {
+          seen.add(val)
+          list.push({
+            value: val,
+            label: `${monthNames[m - 1]} ${y}`
+          })
+        }
+      }
+    }
+    return list
+  }, [])
 
   return (
     <div className="py-12 md:py-16 animate-fade-in">
@@ -42,7 +58,7 @@ export default function Agenda() {
         {/* Month Filter */}
         <div className="flex justify-center">
           <div className="flex gap-2 overflow-x-auto pb-2 max-w-full">
-            {months.map(m => (
+            {months.slice(0, 13).map(m => (
               <button
                 key={m.value}
                 onClick={() => setSelectedMonth(m.value)}
@@ -71,7 +87,11 @@ export default function Agenda() {
         ) : (
           <div className="space-y-6">
             {agendas.map(agenda => {
-              const isDone = agenda.status === 'done'
+              // Otomatis tandai selesai jika tanggal agenda sudah lewat
+              const agendaDateTime = new Date(`${agenda.agenda_date}T${agenda.agenda_time || '23:59:59'}`)
+              const isPast = !isNaN(agendaDateTime.getTime()) && agendaDateTime < new Date()
+              const isDone = agenda.status === 'done' || isPast
+              const agendaYear = new Date(agenda.agenda_date).getFullYear()
 
               return (
                 <div
@@ -121,7 +141,7 @@ export default function Agenda() {
 
                   {/* Status Indicator */}
                   <div className="shrink-0 md:text-right">
-                    <span className="text-xs text-white/40">Tahun 2027</span>
+                    <span className="text-xs text-white/40">Tahun {agendaYear || 'Berjalan'}</span>
                   </div>
                 </div>
               )

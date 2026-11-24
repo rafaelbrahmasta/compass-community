@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
+import { Plus, Edit2, Trash2, Camera, Upload } from 'lucide-react'
 import Modal from '../../components/common/Modal'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import {
   adminGetAlbums,
   adminCreateAlbum,
+  adminUpdateAlbum,
   adminDeleteAlbum,
   getAlbumPhotos,
   adminUploadPhotos,
@@ -18,6 +20,7 @@ export default function AdminGallery() {
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('')
   const [albumModalOpen, setAlbumModalOpen] = useState(false)
   const [photoModalOpen, setPhotoModalOpen] = useState(false)
+  const [editingAlbum, setEditingAlbum] = useState<GalleryAlbum | null>(null)
 
   // Album Form State
   const [albumName, setAlbumName] = useState('')
@@ -34,6 +37,7 @@ export default function AdminGallery() {
   })
   const albums: GalleryAlbum[] = albumsData?.data?.data || []
   const activeAlbumId = selectedAlbumId || albums[0]?.id
+  const currentAlbum = albums.find(a => a.id === activeAlbumId)
 
   const { data: photosData, isLoading: photosLoading } = useQuery({
     queryKey: ['admin-album-photos', activeAlbumId],
@@ -42,19 +46,47 @@ export default function AdminGallery() {
   })
   const photos: GalleryPhoto[] = photosData?.data?.data || []
 
-  const handleCreateAlbum = async (e: React.FormEvent) => {
+  const handleOpenCreateAlbum = () => {
+    setEditingAlbum(null)
+    setAlbumName('')
+    setAlbumDesc('')
+    setAlbumModalOpen(true)
+  }
+
+  const handleOpenEditAlbum = (album: GalleryAlbum) => {
+    setEditingAlbum(album)
+    setAlbumName(album.name)
+    setAlbumDesc(album.description)
+    setAlbumModalOpen(true)
+  }
+
+  const handleSaveAlbum = async (e: React.FormEvent) => {
     e.preventDefault()
     setSubmitting(true)
     try {
-      await adminCreateAlbum({ name: albumName, description: albumDesc, sort_order: albums.length + 1 })
-      toast.success('Album baru berhasil dibuat!')
+      if (editingAlbum) {
+        await adminUpdateAlbum(editingAlbum.id, {
+          name: albumName,
+          description: albumDesc,
+          sort_order: editingAlbum.sort_order,
+        })
+        toast.success('Album berhasil diperbarui!')
+      } else {
+        await adminCreateAlbum({
+          name: albumName,
+          description: albumDesc,
+          sort_order: albums.length + 1,
+        })
+        toast.success('Album baru berhasil dibuat!')
+      }
       setAlbumName('')
       setAlbumDesc('')
       queryClient.invalidateQueries({ queryKey: ['admin-gallery-albums'] })
       queryClient.invalidateQueries({ queryKey: ['gallery-albums'] })
       setAlbumModalOpen(false)
-    } catch {
-      toast.error('Gagal membuat album.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menyimpan album.')
     } finally {
       setSubmitting(false)
     }
@@ -65,10 +97,12 @@ export default function AdminGallery() {
     try {
       await adminDeleteAlbum(id)
       toast.success('Album berhasil dihapus.')
+      if (selectedAlbumId === id) setSelectedAlbumId('')
       queryClient.invalidateQueries({ queryKey: ['admin-gallery-albums'] })
       queryClient.invalidateQueries({ queryKey: ['gallery-albums'] })
-    } catch {
-      toast.error('Gagal menghapus album.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menghapus album.')
     }
   }
 
@@ -84,8 +118,9 @@ export default function AdminGallery() {
       queryClient.invalidateQueries({ queryKey: ['album-photos', activeAlbumId] })
       setSelectedFiles(null)
       setPhotoModalOpen(false)
-    } catch {
-      toast.error('Gagal mengunggah foto.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal mengunggah foto. Pastikan ukuran file total di bawah 50MB.')
     } finally {
       setSubmitting(false)
     }
@@ -98,8 +133,9 @@ export default function AdminGallery() {
       toast.success('Foto dihapus.')
       queryClient.invalidateQueries({ queryKey: ['admin-album-photos', activeAlbumId] })
       queryClient.invalidateQueries({ queryKey: ['album-photos', activeAlbumId] })
-    } catch {
-      toast.error('Gagal menghapus foto.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menghapus foto.')
     }
   }
 
@@ -116,19 +152,30 @@ export default function AdminGallery() {
             Buat album dokumentasi dan unggah banyak foto dokumentasi komunitas sekaligus.
           </p>
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex flex-wrap gap-2.5">
           <button
-            onClick={() => setAlbumModalOpen(true)}
-            className="btn-outline-gold py-2 px-3.5 rounded-lg text-xs font-bold uppercase"
+            onClick={handleOpenCreateAlbum}
+            className="btn-outline-gold py-2 px-3.5 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5"
           >
-            + Buat Album Baru
+            <Plus size={14} />
+            <span>Buat Album Baru</span>
           </button>
+          {currentAlbum && (
+            <button
+              onClick={() => handleOpenEditAlbum(currentAlbum)}
+              className="py-2 px-3.5 rounded-lg text-xs font-bold uppercase border border-white/20 text-white/80 hover:bg-white/10 flex items-center gap-1.5 transition-colors"
+            >
+              <Edit2 size={13} />
+              <span>Edit Nama/Deskripsi Album</span>
+            </button>
+          )}
           <button
             onClick={() => setPhotoModalOpen(true)}
             disabled={!activeAlbumId}
-            className="btn-gold py-2 px-4 rounded-lg text-xs font-bold uppercase disabled:opacity-50"
+            className="btn-gold py-2 px-4 rounded-lg text-xs font-bold uppercase disabled:opacity-50 flex items-center gap-1.5"
           >
-            📷 Upload Foto Sekaligus
+            <Camera size={14} />
+            <span>Upload Foto Sekaligus</span>
           </button>
         </div>
       </div>
@@ -193,14 +240,14 @@ export default function AdminGallery() {
         </div>
       )}
 
-      {/* Modal Buat Album */}
+      {/* Modal Buat / Edit Album */}
       <Modal
         isOpen={albumModalOpen}
         onClose={() => setAlbumModalOpen(false)}
-        title="Buat Album Baru"
+        title={editingAlbum ? 'Edit Album Foto' : 'Buat Album Baru'}
         size="sm"
       >
-        <form onSubmit={handleCreateAlbum} className="space-y-4">
+        <form onSubmit={handleSaveAlbum} className="space-y-4">
           <div>
             <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Nama Album</label>
             <input
@@ -229,7 +276,7 @@ export default function AdminGallery() {
               Batal
             </button>
             <button type="submit" disabled={submitting} className="btn-gold py-2 px-4 rounded text-xs font-bold disabled:opacity-50">
-              Buat Album
+              {submitting ? 'Menyimpan...' : editingAlbum ? 'Simpan Perubahan' : 'Buat Album'}
             </button>
           </div>
         </form>

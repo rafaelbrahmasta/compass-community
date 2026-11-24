@@ -76,8 +76,9 @@ export default function AdminAgenda() {
       queryClient.invalidateQueries({ queryKey: ['admin-agendas'] })
       queryClient.invalidateQueries({ queryKey: ['public-agendas'] })
       setModalOpen(false)
-    } catch {
-      toast.error('Gagal menyimpan agenda.')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      toast.error(error.response?.data?.message || error.message || 'Gagal menyimpan agenda.')
     } finally {
       setSubmitting(false)
     }

@@ -158,6 +158,7 @@ pub struct UpdateTeamMemberRequest {
     pub name: Option<String>,
     pub position: Option<String>,
     pub sort_order: Option<i32>,
+    pub photo_url: Option<String>,
 }
 
 pub async fn update_team_member(
@@ -169,13 +170,43 @@ pub async fn update_team_member(
         "UPDATE team_members SET
          name = COALESCE($1, name),
          position = COALESCE($2, position),
-         sort_order = COALESCE($3, sort_order)
-         WHERE id = $4 RETURNING *"
+         sort_order = COALESCE($3, sort_order),
+         photo_url = COALESCE($4, photo_url)
+         WHERE id = $5 RETURNING *"
     )
-    .bind(body.name).bind(body.position).bind(body.sort_order).bind(id)
+    .bind(body.name)
+    .bind(body.position)
+    .bind(body.sort_order)
+    .bind(body.photo_url)
+    .bind(id)
     .fetch_optional(&pool).await?
     .ok_or_else(|| AppError::NotFound("Pengurus tidak ditemukan".into()))?;
     Ok(ok("Pengurus diperbarui", member))
+}
+
+pub async fn update_team_member_photo(
+    State((pool, config)): State<(PgPool, Config)>,
+    Path(id): Path<Uuid>,
+    mut multipart: Multipart,
+) -> AppResult<impl axum::response::IntoResponse> {
+    let mut photo_url: Option<String> = None;
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+        if field.name() == Some("photo") {
+            let ct = field.content_type().unwrap_or("image/jpeg").to_string();
+            let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            if !data.is_empty() {
+                photo_url = Some(crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?);
+            }
+        }
+    }
+    let m = sqlx::query_as::<_, TeamMember>(
+        "UPDATE team_members SET photo_url = $1 WHERE id = $2 RETURNING *"
+    )
+    .bind(photo_url)
+    .bind(id)
+    .fetch_optional(&pool).await?
+    .ok_or_else(|| AppError::NotFound("Pengurus tidak ditemukan".into()))?;
+    Ok(ok("Foto pengurus berhasil diperbarui", m))
 }
 
 pub async fn delete_team_member(

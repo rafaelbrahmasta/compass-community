@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import Modal from '../../components/common/Modal'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
+import RichTextEditor from '../../components/common/RichTextEditor'
 import {
   adminGetNews,
   adminCreateNews,
@@ -22,7 +23,7 @@ export default function AdminBerita() {
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [author, setAuthor] = useState('Redaksi COMPASS')
-  const [status, setStatus] = useState<NewsStatus>('published')
+  const [status, setStatus] = useState<NewsStatus>('draft')
   const [content, setContent] = useState('')
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -32,7 +33,7 @@ export default function AdminBerita() {
     setTitle('')
     setSummary('')
     setAuthor('Redaksi COMPASS')
-    setStatus('published')
+    setStatus('draft')
     setContent('')
     setThumbnailFile(null)
     setModalOpen(true)
@@ -62,7 +63,11 @@ export default function AdminBerita() {
           content,
         })
         if (thumbnailFile) {
-          await adminUploadNewsThumbnail(editingNews.id, thumbnailFile)
+          try {
+            await adminUploadNewsThumbnail(editingNews.id, thumbnailFile)
+          } catch {
+            toast.error('Berita diperbarui, namun thumbnail gagal diunggah.')
+          }
         }
         toast.success('Berita berhasil diperbarui!')
       } else {
@@ -75,16 +80,20 @@ export default function AdminBerita() {
         })
         const newNews = res.data.data
         if (thumbnailFile) {
-          await adminUploadNewsThumbnail(newNews.id, thumbnailFile)
+          try {
+            await adminUploadNewsThumbnail(newNews.id, thumbnailFile)
+          } catch {
+            toast.error('Berita dibuat, namun thumbnail gagal diunggah.')
+          }
         }
-        toast.success('Berita baru berhasil diterbitkan!')
+        toast.success(status === 'published' ? 'Berita baru berhasil diterbitkan!' : 'Konsep berita (draft) berhasil disimpan!')
       }
       queryClient.invalidateQueries({ queryKey: ['admin-news-list'] })
       queryClient.invalidateQueries({ queryKey: ['public-news-list'] })
       queryClient.invalidateQueries({ queryKey: ['public-news-home'] })
       setModalOpen(false)
-    } catch {
-      toast.error('Gagal menyimpan berita.')
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menyimpan berita.')
     } finally {
       setSubmitting(false)
     }
@@ -259,14 +268,13 @@ export default function AdminBerita() {
           </div>
 
           <div>
-            <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Konten Lengkap Berita (Mendukung HTML)</label>
-            <textarea
-              rows={7}
-              required
+            <label className="block text-white/70 text-xs font-semibold uppercase mb-1">
+              Konten Lengkap Berita (Editor TipTap)
+            </label>
+            <RichTextEditor
               value={content}
-              onChange={e => setContent(e.target.value)}
-              placeholder="<p>Tuliskan naskah berita secara lengkap di sini...</p>"
-              className="w-full bg-dark border border-white/20 rounded-lg p-3 text-white text-sm focus:outline-none focus:border-gold font-mono"
+              onChange={setContent}
+              placeholder="Tulis naskah berita secara lengkap dengan format heading, list, quote..."
             />
           </div>
 

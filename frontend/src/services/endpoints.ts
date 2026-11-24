@@ -142,6 +142,11 @@ export const adminCreateTeamMember = (data: FormData) =>
   api.post<ApiResponse<TeamMember>>('/admin/team-members', data, { headers: { 'Content-Type': 'multipart/form-data' } })
 export const adminUpdateTeamMember = (id: string, data: Partial<TeamMember>) =>
   api.put<ApiResponse<TeamMember>>(`/admin/team-members/${id}`, data)
+export const adminUpdateTeamMemberPhoto = (id: string, file: File) => {
+  const form = new FormData()
+  form.append('photo', file)
+  return api.post<ApiResponse<TeamMember>>(`/admin/team-members/${id}/photo`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
 export const adminDeleteTeamMember = (id: string) =>
   api.delete<ApiResponse<null>>(`/admin/team-members/${id}`)
 

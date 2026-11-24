@@ -241,37 +241,69 @@ pub async fn import_csv(
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         if field.name() == Some("file") {
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let content = String::from_utf8(data.to_vec())
+            let raw_content = String::from_utf8(data.to_vec())
                 .map_err(|_| AppError::BadRequest("File CSV tidak valid (bukan UTF-8)".into()))?;
 
-            let mut reader = csv::Reader::from_reader(content.as_bytes());
+            // Bersihkan BOM UTF-8 jika ada (misal dari export Excel Windows)
+            let content = raw_content.trim_start_matches('\u{feff}');
+
+            // Deteksi otomatis pemisah/delimiter (koma ',' vs titik koma ';')
+            let first_line = content.lines().next().unwrap_or("");
+            let delimiter = if first_line.matches(';').count() > first_line.matches(',').count() {
+                b';'
+            } else {
+                b','
+            };
+
+            let mut reader = csv::ReaderBuilder::new()
+                .delimiter(delimiter)
+                .trim(csv::Trim::All)
+                .from_reader(content.as_bytes());
+
+            let mut tx = pool.begin().await?;
             let mut imported = 0u32;
 
-            for result in reader.deserialize::<CsvMatchRow>() {
-                let row = result.map_err(|e| AppError::BadRequest(format!("Error CSV: {}", e)))?;
-                let date = NaiveDate::parse_from_str(&row.tanggal, "%Y-%m-%d")
-                    .map_err(|_| AppError::BadRequest(format!("Format tanggal salah: {}", row.tanggal)))?;
-                let time = chrono::NaiveTime::parse_from_str(&row.waktu, "%H:%M")
-                    .map_err(|_| AppError::BadRequest(format!("Format waktu salah: {}", row.waktu)))?;
+            for (idx, result) in reader.deserialize::<CsvMatchRow>().enumerate() {
+                let row = result.map_err(|e| AppError::BadRequest(format!("Error format CSV pada baris {}: {}", idx + 2, e)))?;
+                let date = NaiveDate::parse_from_str(row.tanggal.trim(), "%Y-%m-%d")
+                    .map_err(|_| AppError::BadRequest(format!("Format tanggal salah pada baris {}: '{}'. Gunakan format YYYY-MM-DD", idx + 2, row.tanggal)))?;
+                let time_str = row.waktu.trim();
+                let time = chrono::NaiveTime::parse_from_str(time_str, "%H:%M")
+                    .or_else(|_| chrono::NaiveTime::parse_from_str(time_str, "%H:%M:%S"))
+                    .map_err(|_| AppError::BadRequest(format!("Format waktu salah pada baris {}: '{}'. Gunakan format HH:MM", idx + 2, row.waktu)))?;
+
+                let home_away = row.kandang_tandang.trim().to_lowercase();
+                let valid_ha = match home_away.as_str() {
+                    "kandang" | "home" => "home",
+                    "tandang" | "away" => "away",
+                    _ => return Err(AppError::BadRequest(format!("Status kandang/tandang pada baris {} tidak valid: '{}'. Gunakan 'kandang' atau 'tandang'", idx + 2, row.kandang_tandang))),
+                };
 
                 sqlx::query(
                     "INSERT INTO matches (id, opponent_name, match_date, match_time, stadium, home_away, competition, status)
                      VALUES ($1, $2, $3, $4, $5, $6, $7, 'upcoming')"
                 )
                 .bind(Uuid::new_v4())
-                .bind(&row.lawan)
+                .bind(row.lawan.trim())
                 .bind(date)
                 .bind(time)
-                .bind(&row.stadion)
-                .bind(&row.kandang_tandang)
-                .bind(&row.kompetisi)
-                .execute(&pool).await?;
+                .bind(row.stadion.trim())
+                .bind(valid_ha)
+                .bind(row.kompetisi.trim())
+                .execute(&mut *tx).await?;
 
                 imported += 1;
             }
 
+            if imported == 0 {
+                return Err(AppError::BadRequest("File CSV kosong atau tidak memiliki data pertandingan".into()));
+            }
+
+            // Seluruh baris berhasil divalidasi dan di-insert, commit transaksi
+            tx.commit().await?;
+
             return Ok(ok("Import CSV berhasil", serde_json::json!({"imported": imported})));
         }
     }
-    Err(AppError::BadRequest("File tidak ditemukan".into()))
+    Err(AppError::BadRequest("File CSV tidak ditemukan".into()))
 }

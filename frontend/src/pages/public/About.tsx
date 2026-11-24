@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Target, Zap, Users, User } from 'lucide-react'
+import DOMPurify from 'dompurify'
 import { getAbout } from '../../services/endpoints'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import Reveal from '../../components/common/Reveal'
@@ -77,38 +78,56 @@ export default function About() {
         </Reveal>
 
         {/* 2. Visi & Misi */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <Reveal variant="slide-left">
-            <div className="card-dark p-8 border-gold/20 flex flex-col h-full">
-              <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold flex items-center justify-center mb-6">
-                <Target size={24} className="text-gold" />
+        {visiMisi?.content ? (
+          <Reveal variant="fade-up">
+            <div className="card-dark p-8 md:p-12 border-gold/20">
+              <div className="text-center max-w-2xl mx-auto mb-8">
+                <span className="text-gold font-heading font-semibold tracking-widest uppercase text-sm">
+                  Arah & Tujuan
+                </span>
+                <h2 className="section-title mt-2">VISI & MISI KOMUNITAS</h2>
+                <div className="gold-divider mx-auto mt-4" />
               </div>
-              <h3 className="font-heading font-bold text-2xl text-white uppercase tracking-wide mb-3">
-                Visi Komunitas
-              </h3>
-              <div className="text-white/80 leading-relaxed text-sm md:text-base">
-                Menjadi wadah suporter PSS Sleman yang profesional, mandiri, berintegritas tinggi, dan membawa nama baik Sleman di kancah sepak bola nasional maupun internasional.
-              </div>
+              <div
+                className="prose prose-invert max-w-3xl mx-auto text-white/80 leading-relaxed [&>h3]:text-gold [&>h3]:font-heading [&>h3]:text-2xl [&>h3]:font-bold [&>h3]:uppercase [&>h3]:mt-6 [&>h3]:mb-3 [&>ul]:list-disc [&>ul]:list-inside [&>ul]:space-y-2 [&>ul>li]:text-white/80"
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(visiMisi.content) }}
+              />
             </div>
           </Reveal>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Reveal variant="slide-left">
+              <div className="card-dark p-8 border-gold/20 flex flex-col h-full">
+                <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold flex items-center justify-center mb-6">
+                  <Target size={24} className="text-gold" />
+                </div>
+                <h3 className="font-heading font-bold text-2xl text-white uppercase tracking-wide mb-3">
+                  Visi Komunitas
+                </h3>
+                <div className="text-white/80 leading-relaxed text-sm md:text-base">
+                  Menjadi wadah suporter PSS Sleman yang profesional, mandiri, berintegritas tinggi, dan membawa nama baik Sleman di kancah sepak bola nasional maupun internasional.
+                </div>
+              </div>
+            </Reveal>
 
-          <Reveal variant="slide-right">
-            <div className="card-dark p-8 border-gold/20 flex flex-col h-full">
-              <div className="w-12 h-12 rounded-xl bg-primary/40 border border-primary-light flex items-center justify-center mb-6">
-                <Zap size={24} className="text-gold" />
+            <Reveal variant="slide-right">
+              <div className="card-dark p-8 border-gold/20 flex flex-col h-full">
+                <div className="w-12 h-12 rounded-xl bg-primary/40 border border-primary-light flex items-center justify-center mb-6">
+                  <Zap size={24} className="text-gold" />
+                </div>
+                <h3 className="font-heading font-bold text-2xl text-white uppercase tracking-wide mb-3">
+                  Misi Komunitas
+                </h3>
+                <ul className="text-white/80 leading-relaxed text-sm md:text-base space-y-2 list-disc list-inside">
+                  <li>Mendampingi dan mendukung penuh perjuangan PSS Sleman secara sportif.</li>
+                  <li>Membangun solidaritas dan persaudaraan antar anggota di seluruh wilayah.</li>
+                  <li>Menghadirkan program sosial dan kemanusiaan bagi masyarakat luas.</li>
+                  <li>Mengembangkan kreativitas tribun yang positif, atraktif, dan beretika.</li>
+                </ul>
               </div>
-              <h3 className="font-heading font-bold text-2xl text-white uppercase tracking-wide mb-3">
-                Misi Komunitas
-              </h3>
-              <ul className="text-white/80 leading-relaxed text-sm md:text-base space-y-2 list-disc list-inside">
-                <li>Mendampingi dan mendukung penuh perjuangan PSS Sleman secara sportif.</li>
-                <li>Membangun solidaritas dan persaudaraan antar anggota di seluruh wilayah.</li>
-                <li>Menghadirkan program sosial dan kemanusiaan bagi masyarakat luas.</li>
-                <li>Mengembangkan kreativitas tribun yang positif, atraktif, dan beretika.</li>
-              </ul>
-            </div>
-          </Reveal>
-        </div>
+            </Reveal>
+          </div>
+        )}
 
         {/* 3. Struktur Pengurus */}
         <div>

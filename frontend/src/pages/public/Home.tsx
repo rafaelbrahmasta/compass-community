@@ -105,7 +105,7 @@ export default function Home() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-dark via-transparent to-transparent" />
                   </div>
-                  <div className="absolute -bottom-6 -right-6 bg-primary border-2 border-gold p-4.5 rounded-2xl shadow-2xl hidden sm:block">
+                  <div className="absolute -bottom-6 -right-6 bg-primary border-2 border-gold p-4 rounded-2xl shadow-2xl hidden sm:block">
                     <div className="font-heading text-3xl font-black text-gold">100%</div>
                     <div className="text-xs uppercase font-bold text-white tracking-wider">Supercan Sleman</div>
                   </div>

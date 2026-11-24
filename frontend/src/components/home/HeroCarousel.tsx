@@ -27,12 +27,12 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
     { id: '4', title: 'COMPASS FOR HUMANITY', subtitle: 'Karena sepak bola lebih dari sekadar 90 menit di lapangan', image_url: defaultImages[3], sort_order: 4, is_active: true, created_at: '' },
   ]
 
-  // Auto slide 3 detik
+  // Auto slide 6 detik (aksesibel dan nyaman dibaca)
   useEffect(() => {
     if (isPaused || activeSlides.length <= 1) return
     const timer = setInterval(() => {
       setCurrent(prev => (prev + 1) % activeSlides.length)
-    }, 3000)
+    }, 6000)
     return () => clearInterval(timer)
   }, [isPaused, activeSlides.length])
 
@@ -79,6 +79,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
         return (
           <div
             key={slide.id || index}
+            aria-hidden={!isActive}
             className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
               isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             }`}
@@ -103,15 +104,22 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                 <span className="inline-block px-3.5 py-1 bg-gold text-dark font-heading font-black text-xs uppercase tracking-widest rounded-md mb-3 shadow-md">
                   COMPASS SLEMAN
                 </span>
-                <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black text-white tracking-wide uppercase leading-tight drop-shadow-lg">
-                  {slide.title}
-                </h1>
+                {index === 0 ? (
+                  <h1 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black text-white tracking-wide uppercase leading-tight drop-shadow-lg">
+                    {slide.title}
+                  </h1>
+                ) : (
+                  <h2 className="text-4xl sm:text-6xl md:text-7xl font-heading font-black text-white tracking-wide uppercase leading-tight drop-shadow-lg">
+                    {slide.title}
+                  </h2>
+                )}
                 <p className="mt-3 text-lg sm:text-xl text-white/90 font-normal drop-shadow max-w-2xl leading-relaxed">
                   {slide.subtitle}
                 </p>
                 <div className="mt-7 flex flex-wrap gap-4">
                   <Link
                     to="/tiket"
+                    tabIndex={isActive ? 0 : -1}
                     className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 shadow-lg shadow-gold/20 transition-all duration-300"
                   >
                     <Ticket size={18} strokeWidth={1.5} />
@@ -119,6 +127,7 @@ export default function HeroCarousel({ slides }: HeroCarouselProps) {
                   </Link>
                   <Link
                     to="/about"
+                    tabIndex={isActive ? 0 : -1}
                     className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-gold/60 text-gold hover:bg-gold hover:text-dark font-heading font-black uppercase tracking-wider text-sm backdrop-blur-sm transition-all duration-300"
                   >
                     <Users size={18} strokeWidth={1.5} />
