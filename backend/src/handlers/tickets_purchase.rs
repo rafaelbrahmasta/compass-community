@@ -475,7 +475,7 @@ pub async fn check_ticket(
 
 // Handler upload bukti transfer tiket
 pub async fn upload_payment_proof(
-    State((pool, _config)): State<(PgPool, Config)>,
+    State((pool, config)): State<(PgPool, Config)>,
     mut multipart: Multipart,
 ) -> AppResult<impl axum::response::IntoResponse> {
     let mut ticket_code: Option<String> = None;
@@ -493,7 +493,7 @@ pub async fn upload_payment_proof(
         } else if name == "file" {
             let content_type = field.content_type().unwrap_or("image/jpeg").to_string();
             let bytes = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = save_upload("proofs", "proof", &content_type, &bytes).await?;
+            let url = save_upload(&config.upload_dir, "proof", &content_type, &bytes).await?;
             uploaded_url = Some(url);
         }
     }
