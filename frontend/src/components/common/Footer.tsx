@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getSiteSettings } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import {
   MapPin,
   Mail,
@@ -63,7 +64,7 @@ export default function Footer() {
             <div>
               <div className="flex items-center gap-3 mb-4">
                 {settings?.logo_url ? (
-                  <img src={settings.logo_url} alt="COMPASS" className="h-11 w-auto" />
+                  <img src={getAssetUrl(settings.logo_url)} alt={settings?.site_name || 'COMPASS'} className="h-11 w-auto object-contain" />
                 ) : (
                   <div className="w-11 h-11 bg-primary border-2 border-gold flex items-center justify-center rounded-lg shadow-md shadow-black/50">
                     <span className="font-heading font-bold text-gold text-base tracking-wider">CP</span>

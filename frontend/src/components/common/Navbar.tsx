@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getSiteSettings } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import { Menu, X, Ticket } from 'lucide-react'
 
 const navLinks = [
@@ -54,7 +55,7 @@ export default function Navbar() {
           {/* Logo Brand */}
           <Link to="/" className="flex items-center gap-3 group">
             {logoUrl ? (
-              <img src={logoUrl} alt={siteName} className="h-10 w-auto" />
+              <img src={getAssetUrl(logoUrl)} alt={siteName} className="h-10 w-auto object-contain" />
             ) : (
               <div className="w-9 h-9 bg-primary border border-gold flex items-center justify-center rounded-lg shadow-sm group-hover:border-gold transition-colors">
                 <span className="font-heading font-black text-gold text-sm tracking-wider">CP</span>

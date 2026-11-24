@@ -7,6 +7,7 @@ import {
   adminUpdateSettings,
   adminUploadLogo,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 
 export default function AdminSettings() {
   const queryClient = useQueryClient()
@@ -117,7 +118,18 @@ export default function AdminSettings() {
               />
             </div>
             <div>
-              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Upload Logo Baru</label>
+              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Logo Komunitas Saat Ini</label>
+              {settings?.logo_url ? (
+                <div className="mb-2 p-2 bg-black/40 rounded-lg inline-flex items-center gap-3 border border-white/10">
+                  <img src={getAssetUrl(settings.logo_url)} alt="Logo COMPASS" className="h-12 w-auto object-contain" />
+                  <span className="text-[11px] text-white/50">Logo aktif ditampilkan di Navbar & Footer</span>
+                </div>
+              ) : (
+                <div className="mb-2 text-xs text-white/40 italic">
+                  Belum ada logo khusus (saat ini menggunakan ikon bawaan "CP").
+                </div>
+              )}
+              <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Upload File Logo Baru (PNG / JPG)</label>
               <input
                 type="file"
                 accept="image/*"
