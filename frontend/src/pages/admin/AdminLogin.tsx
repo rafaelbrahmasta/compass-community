@@ -28,8 +28,14 @@ export default function AdminLogin() {
       toast.success('Login berhasil!')
       navigate('/admin/dashboard')
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      toast.error(error.response?.data?.message || 'Email atau password salah')
+      const error = err as { response?: { data?: { message?: string } }; message?: string }
+      if (error.response?.data?.message) {
+        toast.error(error.response.data.message)
+      } else if (error.message) {
+        toast.error(`Koneksi error: ${error.message}`)
+      } else {
+        toast.error('Email atau password salah')
+      }
     } finally {
       setLoading(false)
     }

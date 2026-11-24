@@ -74,12 +74,7 @@ async fn build_app(
     let upload_dir = config.upload_dir.clone();
 
     let cors = CorsLayer::new()
-        .allow_origin(
-            frontend_url
-                .parse::<axum::http::HeaderValue>()
-                .map(tower_http::cors::AllowOrigin::exact)
-                .unwrap_or_else(|_| tower_http::cors::AllowOrigin::any()),
-        )
+        .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
