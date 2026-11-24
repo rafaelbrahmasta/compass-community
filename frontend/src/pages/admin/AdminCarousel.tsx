@@ -10,6 +10,7 @@ import {
   adminUploadSlideImage,
   adminDeleteSlide,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import type { CarouselSlide } from '../../types'
 
 export default function AdminCarousel() {
@@ -130,7 +131,7 @@ export default function AdminCarousel() {
               <div>
                 <div className="h-44 bg-dark-surface relative overflow-hidden">
                   {slide.image_url ? (
-                    <img src={slide.image_url} alt={slide.title} className="w-full h-full object-cover" />
+                    <img src={getAssetUrl(slide.image_url)} alt={slide.title} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-white/30 text-xs">
                       (Belum ada gambar)

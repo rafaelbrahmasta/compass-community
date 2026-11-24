@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Target, Zap, Users, User } from 'lucide-react'
 import DOMPurify from 'dompurify'
 import { getAbout } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import Reveal from '../../components/common/Reveal'
 
@@ -17,7 +18,7 @@ export default function About() {
   const aboutData = data?.data?.data
   const about = aboutData?.about
   const visiMisi = aboutData?.visi_misi
-  const aboutImage = aboutData?.about_image?.content || DEFAULT_ABOUT_PAGE_IMAGE
+  const aboutImage = aboutData?.about_image?.content ? getAssetUrl(aboutData.about_image.content) : DEFAULT_ABOUT_PAGE_IMAGE
   const teamMembers = aboutData?.team_members || []
 
   if (isLoading) {
@@ -157,7 +158,7 @@ export default function About() {
                     <div className="h-64 overflow-hidden bg-dark-surface relative">
                       {member.photo_url ? (
                         <img
-                          src={member.photo_url}
+                          src={getAssetUrl(member.photo_url)}
                           alt={member.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />

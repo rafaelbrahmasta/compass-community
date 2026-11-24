@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getMerchCategories, getMerchProducts } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
 export default function Merchandise() {
@@ -93,7 +94,7 @@ export default function Merchandise() {
                     {/* Image */}
                     <div className="h-64 overflow-hidden relative bg-dark-surface">
                       <img
-                        src={primaryImg}
+                        src={getAssetUrl(primaryImg)}
                         alt={p.name}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />

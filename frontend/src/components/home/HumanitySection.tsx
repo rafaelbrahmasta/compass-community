@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { Heart, Landmark, Copy, ArrowRight, QrCode } from 'lucide-react'
 import Modal from '../common/Modal'
 import Reveal from '../common/Reveal'
+import { getAssetUrl } from '../../services/api'
 import type { HumanitySettings } from '../../types'
 
 interface HumanitySectionProps {
@@ -128,7 +129,7 @@ export default function HumanitySection({ settings }: HumanitySectionProps) {
           {/* QR Code Container */}
           <div className="bg-white p-4 rounded-2xl inline-block shadow-inner mx-auto max-w-[260px]">
             {qrImageUrl ? (
-              <img src={qrImageUrl} alt="QR Code Donasi" className="w-full h-auto rounded-xl" />
+              <img src={getAssetUrl(qrImageUrl)} alt="QR Code Donasi" className="w-full h-auto rounded-xl" />
             ) : (
               <div className="w-56 h-56 bg-dark border-2 border-dashed border-gray-400 flex flex-col items-center justify-center p-4 text-center rounded-xl">
                 <QrCode size={36} strokeWidth={1.5} className="text-gold mb-2" />

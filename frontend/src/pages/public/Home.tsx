@@ -13,6 +13,7 @@ import {
   getUpcomingMatches,
   getNewsList,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 
 export default function Home() {
   const { data: slidesData, isLoading: slidesLoading } = useQuery({
@@ -43,8 +44,9 @@ export default function Home() {
   const slides = slidesData?.data?.data || []
   const about = aboutData?.data?.data?.about
   const aboutImage =
-    aboutData?.data?.data?.about_image?.content ||
-    'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80'
+    aboutData?.data?.data?.about_image?.content
+      ? getAssetUrl(aboutData.data.data.about_image.content)
+      : 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80'
   const history = aboutData?.data?.data?.history || []
   const humanity = humanityData?.data?.data || null
   const upcomingMatches = upcomingData?.data?.data || []
@@ -188,7 +190,7 @@ export default function Home() {
                   >
                     <div className="h-48 overflow-hidden relative">
                       <img
-                        src={item.thumbnail_url || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80'}
+                        src={item.thumbnail_url ? getAssetUrl(item.thumbnail_url) : 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80'}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />

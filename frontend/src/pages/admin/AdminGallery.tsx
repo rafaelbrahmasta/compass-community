@@ -13,6 +13,7 @@ import {
   adminUploadPhotos,
   adminDeletePhoto,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import type { GalleryAlbum, GalleryPhoto } from '../../types'
 
 export default function AdminGallery() {
@@ -224,7 +225,7 @@ export default function AdminGallery() {
           {photos.map(p => (
             <div key={p.id} className="card-dark rounded-xl overflow-hidden group relative">
               <div className="h-44 bg-dark-surface overflow-hidden">
-                <img src={p.image_url} alt="Foto" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <img src={getAssetUrl(p.image_url)} alt="Foto" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
               </div>
               <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button

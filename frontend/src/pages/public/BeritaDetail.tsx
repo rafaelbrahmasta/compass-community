@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import DOMPurify from 'dompurify'
 import { User, Calendar, ArrowLeft } from 'lucide-react'
 import { getNewsDetail } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
 export default function BeritaDetail() {
@@ -70,7 +71,7 @@ export default function BeritaDetail() {
         {news.thumbnail_url && (
           <div className="rounded-2xl overflow-hidden border border-white/10 shadow-2xl h-80 sm:h-[420px] bg-dark-surface">
             <img
-              src={news.thumbnail_url}
+              src={getAssetUrl(news.thumbnail_url)}
               alt={news.title}
               className="w-full h-full object-cover"
             />

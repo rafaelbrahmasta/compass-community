@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import Lightbox from 'yet-another-react-lightbox'
 import 'yet-another-react-lightbox/styles.css'
 import { getGalleryAlbums, getAlbumPhotos } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import type { GalleryAlbum, GalleryPhoto } from '../../types'
 
@@ -30,7 +31,7 @@ export default function Gallery() {
   const photos: GalleryPhoto[] = photosData?.data?.data || []
 
   const slides = photos.map(p => ({
-    src: p.image_url,
+    src: getAssetUrl(p.image_url),
     title: p.caption || 'Dokumentasi COMPASS',
   }))
 
@@ -100,7 +101,7 @@ export default function Gallery() {
               >
                 <div className="relative overflow-hidden">
                   <img
-                    src={photo.image_url}
+                    src={getAssetUrl(photo.image_url)}
                     alt={photo.caption || 'Foto Galeri'}
                     className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"

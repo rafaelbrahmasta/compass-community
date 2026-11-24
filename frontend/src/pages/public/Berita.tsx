@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { getNewsList } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
 export default function Berita() {
@@ -54,7 +55,7 @@ export default function Berita() {
                 {/* Thumbnail */}
                 <div className="h-52 overflow-hidden relative bg-dark-surface">
                   <img
-                    src={news.thumbnail_url || 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80'}
+                    src={news.thumbnail_url ? getAssetUrl(news.thumbnail_url) : 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=800&q=80'}
                     alt={news.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

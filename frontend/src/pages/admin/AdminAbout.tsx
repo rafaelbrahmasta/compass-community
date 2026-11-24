@@ -12,6 +12,7 @@ import {
   adminUpdateTeamMember,
   adminDeleteTeamMember,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import type { TeamMember } from '../../types'
 
 const DEFAULT_ABOUT_IMAGE =
@@ -188,7 +189,7 @@ export default function AdminAbout() {
   if (isLoading) return <LoadingSpinner size="md" />
 
   const currentActiveImage =
-    photoPreview || aboutImage?.content || DEFAULT_ABOUT_IMAGE
+    photoPreview || (aboutImage?.content ? getAssetUrl(aboutImage.content) : DEFAULT_ABOUT_IMAGE)
 
   return (
     <div className="space-y-10">
@@ -362,7 +363,7 @@ export default function AdminAbout() {
               <div>
                 <div className="h-40 bg-dark-surface rounded-lg overflow-hidden mb-3">
                   {m.photo_url ? (
-                    <img src={m.photo_url} alt={m.name} className="w-full h-full object-cover" />
+                    <img src={getAssetUrl(m.photo_url)} alt={m.name} className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-white/5">
                       <User size={36} className="text-white/30" />
@@ -443,7 +444,7 @@ export default function AdminAbout() {
             </label>
             {editingMember && editingMember.photo_url && (
               <div className="flex items-center gap-3 mb-2 p-2 bg-dark-surface/50 rounded-lg border border-white/10">
-                <img src={editingMember.photo_url} alt={editingMember.name} className="w-12 h-12 object-cover rounded-md" />
+                <img src={getAssetUrl(editingMember.photo_url)} alt={editingMember.name} className="w-12 h-12 object-cover rounded-md" />
                 <span className="text-xs text-white/60">Foto profil saat ini. Pilih file baru di bawah jika ingin menggantinya.</span>
               </div>
             )}

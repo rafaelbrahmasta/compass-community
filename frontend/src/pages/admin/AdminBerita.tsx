@@ -11,6 +11,7 @@ import {
   adminDeleteNews,
   adminUploadNewsThumbnail,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import type { News, NewsStatus } from '../../types'
 
 export default function AdminBerita() {
@@ -157,7 +158,7 @@ export default function AdminBerita() {
                     <td className="p-4 w-20">
                       <div className="w-14 h-10 rounded overflow-hidden bg-dark-surface">
                         {n.thumbnail_url ? (
-                          <img src={n.thumbnail_url} alt="Thumbnail" className="w-full h-full object-cover" />
+                          <img src={getAssetUrl(n.thumbnail_url)} alt="Thumbnail" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-xs">📷</div>
                         )}

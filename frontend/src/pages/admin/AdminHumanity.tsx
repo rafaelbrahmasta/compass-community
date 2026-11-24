@@ -7,6 +7,7 @@ import {
   adminUpdateHumanity,
   adminUploadHumanityQR,
 } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 
 export default function AdminHumanity() {
   const queryClient = useQueryClient()
@@ -141,7 +142,7 @@ export default function AdminHumanity() {
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <div className="w-40 h-40 bg-white p-2 rounded-xl shrink-0 flex items-center justify-center border">
               {humanity?.qr_image_url ? (
-                <img src={humanity.qr_image_url} alt="QR Donasi" className="w-full h-full object-contain" />
+                <img src={getAssetUrl(humanity.qr_image_url)} alt="QR Donasi" className="w-full h-full object-contain" />
               ) : (
                 <span className="text-xs text-gray-500 font-semibold text-center">Belum ada QR Code</span>
               )}

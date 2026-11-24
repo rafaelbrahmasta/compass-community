@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getMerchProductDetail, getSiteSettings } from '../../services/endpoints'
+import { getAssetUrl } from '../../services/api'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
 export default function MerchandiseDetail() {
@@ -87,7 +88,7 @@ export default function MerchandiseDetail() {
             {/* Primary Large Image */}
             <div className="card-dark rounded-2xl overflow-hidden h-96 sm:h-[460px] bg-dark-surface border-white/10 relative">
               <img
-                src={currentDisplayImage}
+                src={getAssetUrl(currentDisplayImage)}
                 alt={product.name}
                 className="w-full h-full object-cover transition-all duration-300"
               />
@@ -117,7 +118,7 @@ export default function MerchandiseDetail() {
                         : 'border-white/20 hover:border-white/50'
                     }`}
                   >
-                    <img src={img.image_url} alt="Thumbnail" className="w-full h-full object-cover" />
+                    <img src={getAssetUrl(img.image_url)} alt="Thumbnail" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
