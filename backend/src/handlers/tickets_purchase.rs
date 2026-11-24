@@ -1,5 +1,5 @@
 use axum::{
-    extract::{ConnectInfo, Query, State},
+    extract::{ConnectInfo, Multipart, Query, State},
     Json,
     http::HeaderMap,
 };
@@ -12,8 +12,9 @@ use rand::Rng;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
-use crate::models::{HumanitySettings, Member, TicketCategory, TicketPurchase};
-use crate::utils::{limiter, extract_ip};
+use crate::models::{Member, TicketBankSettings, TicketCategory, TicketPurchase};
+use crate::utils::{limiter, extract_ip, save_upload};
+use crate::utils::email::send_email_async;
 
 #[derive(Deserialize)]
 pub struct BuyTicketRequest {
@@ -31,11 +32,14 @@ pub struct BuyTicketResponse {
     pub qr_payload: String,
     pub status: String,
     pub price: rust_decimal::Decimal,
+    pub unique_code: i32,
+    pub total_price: rust_decimal::Decimal,
     pub expires_at: DateTime<Utc>,
     pub member: MemberInfo,
     pub match_info: MatchBrief,
     pub category_name: String,
     pub bank_info: BankInfo,
+    pub instructions: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -59,10 +63,11 @@ pub struct BankInfo {
     pub bank_name: String,
     pub account_name: String,
     pub account_number: String,
+    pub qr_image_url: Option<String>,
 }
 
 pub async fn buy_ticket(
-    State((pool, _config)): State<(PgPool, Config)>,
+    State((pool, config)): State<(PgPool, Config)>,
     ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<BuyTicketRequest>,
@@ -98,70 +103,84 @@ pub async fn buy_ticket(
     }
 
     // Validasi PIN Anggota untuk mencegah orang lain menghabiskan jatah tiket
-    let pin_input = body.pin.as_deref().unwrap_or("").trim();
-    if pin_input.is_empty() {
-        return Err(AppError::BadRequest("PIN anggota 6 digit wajib diisi".into()));
-    }
-
-    let is_pin_valid = if let Some(ref pin_hash) = member.pin_hash {
-        if let Ok(parsed_hash) = PasswordHash::new(pin_hash) {
-            Argon2::default().verify_password(pin_input.as_bytes(), &parsed_hash).is_ok()
-        } else {
-            pin_hash == pin_input
+    let pin_valid = match (&member.pin_hash, &body.pin) {
+        (Some(hash), Some(input_pin)) => {
+            if let Ok(parsed_hash) = PasswordHash::new(hash) {
+                Argon2::default().verify_password(input_pin.as_bytes(), &parsed_hash).is_ok()
+            } else {
+                hash == input_pin
+            }
         }
-    } else {
-        // Anggota tanpa PIN khusus: default PIN adalah 6 digit terakhir nomor HP atau 123456
-        let fallback_pin = if clean_phone.len() >= 6 {
-            &clean_phone[clean_phone.len() - 6..]
-        } else {
-            "123456"
-        };
-        pin_input == fallback_pin || pin_input == "123456"
+        (None, Some(input_pin)) => {
+            // Fallback: 6 digit terakhir nomor HP atau 123456 jika belum set PIN
+            let phone_suffix = if clean_phone.len() >= 6 {
+                &clean_phone[clean_phone.len() - 6..]
+            } else {
+                "123456"
+            };
+            input_pin == phone_suffix || input_pin == "123456"
+        }
+        _ => false,
     };
 
-    if !is_pin_valid {
-        return Err(AppError::Unauthorized(
-            "PIN Anggota salah. Masukkan PIN keamanan Anda (default: 6 digit terakhir nomor HP).".into()
+    if !pin_valid {
+        return Err(AppError::BadRequest(
+            "PIN anggota tidak valid atau belum diisi. Gunakan 6 digit terakhir nomor HP Anda atau hubungi admin bila lupa PIN.".into()
         ));
     }
 
-    // 2. Cek apakah ada pesanan tiket kedaluwarsa milik anggota ini, batalkan otomatis bila ada
-    sqlx::query(
-        r#"UPDATE ticket_purchases
-           SET status = 'dibatalkan',
-               notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena batas waktu pembayaran 24 jam berakhir'
-           WHERE member_id = $1 AND match_id = $2 AND status = 'menunggu_pembayaran' AND expires_at <= NOW()"#
-    )
-    .bind(member.id)
-    .bind(body.match_id)
-    .execute(&pool)
-    .await?;
-
-    // Cek apakah anggota sudah punya tiket aktif untuk pertandingan ini (1 tiket per anggota per pertandingan)
-    let existing_ticket = sqlx::query_as::<_, TicketPurchase>(
-        r#"SELECT * FROM ticket_purchases
-           WHERE member_id = $1 AND match_id = $2 AND status != 'dibatalkan'"#
-    )
-    .bind(member.id)
-    .bind(body.match_id)
-    .fetch_optional(&pool)
-    .await?;
-
-    if let Some(existing) = existing_ticket {
-        return Err(AppError::BadRequest(format!(
-            "Anda sudah memiliki pesanan tiket untuk pertandingan ini (Kode: {}). Maksimal 1 tiket per anggota.",
-            existing.ticket_code
-        )));
-    }
-
-    // 3. Mulai Transaksi untuk cek kuota dan buat tiket
+    // 2. Mulai transaksi dengan locking
     let mut tx = pool.begin().await?;
 
-    // Kunci row kategori tiket untuk atomisitas kuota
-    let category = sqlx::query_as::<_, TicketCategory>(
-        r#"SELECT * FROM ticket_categories
-           WHERE id = $1 AND match_id = $2
+    // Auto-cancel tiket yang sudah kedaluwarsa untuk member dan laga ini
+    let _ = sqlx::query(
+        r#"WITH expired AS (
+               UPDATE ticket_purchases
+               SET status = 'dibatalkan',
+                   notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena kedaluwarsa saat order baru'
+               WHERE member_id = $1 AND match_id = $2 AND status = 'menunggu_pembayaran' AND expires_at <= NOW()
+               RETURNING category_id
+           )
+           UPDATE ticket_categories tc
+           SET sold = GREATEST(0, tc.sold - 1)
+           FROM expired
+           WHERE tc.id = expired.category_id"#
+    )
+    .bind(member.id)
+    .bind(body.match_id)
+    .execute(&mut *tx)
+    .await;
+
+    // Periksa apakah anggota sudah punya tiket yang aktif (menunggu_pembayaran / lunas / sudah_checkin)
+    let existing_active = sqlx::query_as::<_, TicketPurchase>(
+        r#"SELECT * FROM ticket_purchases
+           WHERE member_id = $1 AND match_id = $2 AND status <> 'dibatalkan'
            FOR UPDATE"#
+    )
+    .bind(member.id)
+    .bind(body.match_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(existing) = existing_active {
+        let msg = match existing.status.as_str() {
+            "menunggu_pembayaran" => format!(
+                "Kamu sudah memiliki pesanan tiket untuk pertandingan ini yang sedang menunggu pembayaran (Kode: {}). Silakan lakukan pembayaran atau tunggu hingga kedaluwarsa.",
+                existing.ticket_code
+            ),
+            "lunas" => format!(
+                "Kamu sudah memiliki tiket lunas untuk pertandingan ini (Kode: {}). 1 anggota hanya berhak membeli 1 tiket.",
+                existing.ticket_code
+            ),
+            "sudah_checkin" => "Kamu sudah menggunakan tiket untuk pertandingan ini.".into(),
+            _ => "Kamu sudah memiliki tiket untuk pertandingan ini.".into(),
+        };
+        return Err(AppError::BadRequest(msg));
+    }
+
+    // 3. Validasi Kategori Tiket dan Kuota
+    let category = sqlx::query_as::<_, TicketCategory>(
+        "SELECT * FROM ticket_categories WHERE id = $1 AND match_id = $2 FOR UPDATE"
     )
     .bind(body.category_id)
     .bind(body.match_id)
@@ -170,34 +189,30 @@ pub async fn buy_ticket(
     .ok_or_else(|| AppError::NotFound("Kategori tiket tidak ditemukan untuk pertandingan ini".into()))?;
 
     if !category.is_active {
-        return Err(AppError::BadRequest(
-            format!("Kategori tiket '{}' tidak aktif saat ini.", category.name)
-        ));
+        return Err(AppError::BadRequest("Kategori tiket ini sedang tidak aktif".into()));
     }
 
     if category.sold >= category.quota {
-        return Err(AppError::BadRequest(
-            format!("Maaf, kuota untuk kategori '{}' sudah habis.", category.name)
-        ));
+        return Err(AppError::BadRequest("Kuota tiket untuk kategori ini sudah habis".into()));
     }
 
-    // Ambil info match
+    // 4. Validasi Pertandingan
     let match_data = sqlx::query_as::<_, crate::models::Match>(
-        "SELECT * FROM matches WHERE id = $1"
+        "SELECT * FROM matches WHERE id = $1 FOR UPDATE"
     )
     .bind(body.match_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
 
-    // Validasi status pertandingan (hanya upcoming atau live yang dibuka penjualan)
+    // Validasi status pertandingan
     if match_data.status != "upcoming" && match_data.status != "live" {
         return Err(AppError::BadRequest(
             "Penjualan tiket untuk pertandingan ini belum dibuka atau sudah ditutup.".into(),
         ));
     }
 
-    // Validasi jendela penjualan: hanya 4 hari ke depan (zona Asia/Jakarta = UTC+7)
+    // Validasi jendela penjualan: hanya 4 hari ke depan (Asia/Jakarta = UTC+7)
     let today_jakarta = (Utc::now() + Duration::hours(7)).date_naive();
     let four_days_later = today_jakarta + Duration::days(4);
     if match_data.match_date < today_jakarta || match_data.match_date > four_days_later {
@@ -219,6 +234,10 @@ pub async fn buy_ticket(
     // QR Payload yang unik dan terenkode
     let qr_payload = format!("COMPASS|{}|{}|{}", ticket_code, member.member_code, match_data.id);
 
+    // Generate 3 digit kode unik (100 - 999) untuk nominal transfer
+    let unique_code = rand::thread_rng().gen_range(100..=999);
+    let total_price = category.price + rust_decimal::Decimal::from(unique_code);
+
     // Update quota sold + 1
     sqlx::query(
         "UPDATE ticket_categories SET sold = sold + 1 WHERE id = $1"
@@ -230,8 +249,8 @@ pub async fn buy_ticket(
     // Insert ticket purchase
     let purchase = sqlx::query_as::<_, TicketPurchase>(
         r#"INSERT INTO ticket_purchases
-           (id, ticket_code, member_id, match_id, category_id, price, status, qr_payload, notes, expires_at)
-           VALUES ($1, $2, $3, $4, $5, $6, 'menunggu_pembayaran', $7, $8, NOW() + INTERVAL '24 hours')
+           (id, ticket_code, member_id, match_id, category_id, price, unique_code, total_price, status, qr_payload, notes, expires_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'menunggu_pembayaran', $9, $10, NOW() + INTERVAL '24 hours')
            RETURNING *"#
     )
     .bind(Uuid::new_v4())
@@ -240,6 +259,8 @@ pub async fn buy_ticket(
     .bind(match_data.id)
     .bind(category.id)
     .bind(category.price)
+    .bind(unique_code)
+    .bind(total_price)
     .bind(&qr_payload)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -247,27 +268,59 @@ pub async fn buy_ticket(
 
     tx.commit().await?;
 
-    // Ambil info bank dari humanity_settings
-    let humanity = sqlx::query_as::<_, HumanitySettings>(
-        "SELECT * FROM humanity_settings LIMIT 1"
+    // Ambil info bank khusus tiket dari ticket_bank_settings (terpisah dari donasi kemanusiaan)
+    let bank_setting = sqlx::query_as::<_, TicketBankSettings>(
+        "SELECT * FROM ticket_bank_settings LIMIT 1"
     )
     .fetch_optional(&pool)
     .await?
-    .unwrap_or(HumanitySettings {
+    .unwrap_or(TicketBankSettings {
         id: Uuid::nil(),
-        program_text: "".into(),
+        bank_name: "Bank BCA".into(),
+        account_name: "COMPASS TIKET RESMI".into(),
+        account_number: "9876543210".into(),
         qr_image_url: None,
-        bank_name: "BCA".into(),
-        account_name: "COMPASS SLEMAN".into(),
-        account_number: "1234567890".into(),
+        instructions: Some("Silakan transfer tepat sesuai total nominal termasuk 3 digit kode unik.".into()),
         updated_at: Utc::now(),
     });
+
+    // Kirim notifikasi email rincian pemesanan tiket jika email member terdaftar
+    if let Some(to_email) = &member.email {
+        if !to_email.trim().is_empty() {
+            let subject = format!("⚽ Tagihan Pemesanan Tiket: {}", purchase.ticket_code);
+            let body_msg = format!(
+                "Halo {}!\n\n\
+                 Pesanan tiket pertandingan PSS Sleman vs {} telah berhasil dibuat.\n\n\
+                 Detail Pembayaran:\n\
+                 - Kode Tiket: {}\n\
+                 - Kategori: {}\n\
+                 - Harga Tiket: Rp {}\n\
+                 - Kode Unik: {}\n\
+                 - TOTAL PEMBAYARAN: Rp {}\n\n\
+                 Rekening Pembayaran:\n\
+                 - Bank: {}\n\
+                 - Atas Nama: {}\n\
+                 - No. Rekening: {}\n\n\
+                 PENTING: Harap transfer tepat hingga 3 digit terakhir (Rp {}) sebelum batas waktu 24 jam.\n\
+                 Unggah bukti transfer Anda melalui menu Cek Tiket di website.\n\n\
+                 Salam Super Elja! 💚\nCOMPASS",
+                member.full_name, match_data.opponent_name,
+                purchase.ticket_code, category.name,
+                category.price, unique_code, total_price,
+                bank_setting.bank_name, bank_setting.account_name, bank_setting.account_number,
+                total_price
+            );
+            send_email_async(config, to_email.clone(), subject, body_msg);
+        }
+    }
 
     Ok(ok("Pesanan tiket berhasil dibuat", BuyTicketResponse {
         ticket_code: purchase.ticket_code,
         qr_payload: purchase.qr_payload,
         status: purchase.status,
         price: purchase.price,
+        unique_code,
+        total_price,
         expires_at: purchase.expires_at,
         member: MemberInfo {
             member_code: member.member_code,
@@ -283,10 +336,12 @@ pub async fn buy_ticket(
         },
         category_name: category.name,
         bank_info: BankInfo {
-            bank_name: humanity.bank_name,
-            account_name: humanity.account_name,
-            account_number: humanity.account_number,
+            bank_name: bank_setting.bank_name,
+            account_name: bank_setting.account_name,
+            account_number: bank_setting.account_number,
+            qr_image_url: bank_setting.qr_image_url,
         },
+        instructions: bank_setting.instructions,
     }))
 }
 
@@ -303,8 +358,11 @@ pub struct TicketDetailItem {
     pub ticket_code: String,
     pub status: String,
     pub price: rust_decimal::Decimal,
+    pub unique_code: i32,
+    pub total_price: rust_decimal::Decimal,
     pub qr_payload: String,
     pub notes: Option<String>,
+    pub payment_proof_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub checked_in_at: Option<DateTime<Utc>>,
@@ -340,7 +398,7 @@ pub async fn check_ticket(
 
     if phone.is_none() {
         return Err(AppError::BadRequest(
-            "Nomor HP terdaftar wajib dimasukkan demi verifikasi privasi dan keamanan tiket".into()
+            "Nomor WhatsApp/HP terdaftar wajib diisi untuk verifikasi keamanan".into()
         ));
     }
 
@@ -351,7 +409,8 @@ pub async fn check_ticket(
     }
 
     let tickets = sqlx::query_as::<_, TicketDetailItem>(
-        r#"SELECT tp.id, tp.ticket_code, tp.status, tp.price, tp.qr_payload, tp.notes,
+        r#"SELECT tp.id, tp.ticket_code, tp.status, tp.price, tp.unique_code, tp.total_price,
+                  tp.qr_payload, tp.notes, tp.payment_proof_url,
                   tp.created_at, tp.paid_at, tp.checked_in_at, tp.expires_at,
                   m.member_code, m.full_name, m.phone,
                   mt.opponent_name, mt.opponent_logo_url, mt.match_date, mt.match_time,
@@ -379,14 +438,99 @@ pub async fn check_ticket(
         ));
     }
 
-    // Samarkan data sensitif anggota (nama dan nomor HP) untuk mencegah kebocoran informasi
+    // Samarkan data sensitif anggota (nama dan nomor HP) untuk keamanan
     let masked_tickets: Vec<TicketDetailItem> = tickets.into_iter().map(|mut t| {
         t.full_name = mask_name(&t.full_name);
         t.phone = mask_phone(&t.phone);
         t
     }).collect();
 
-    Ok(ok("Data tiket ditemukan", masked_tickets))
+    // Sertakan info rekening tiket agar pembeli yang belum transfer bisa melihat instruksi
+    let bank_setting = sqlx::query_as::<_, TicketBankSettings>(
+        "SELECT * FROM ticket_bank_settings LIMIT 1"
+    )
+    .fetch_optional(&pool)
+    .await?
+    .unwrap_or(TicketBankSettings {
+        id: Uuid::nil(),
+        bank_name: "Bank BCA".into(),
+        account_name: "COMPASS TIKET RESMI".into(),
+        account_number: "9876543210".into(),
+        qr_image_url: None,
+        instructions: Some("Silakan transfer tepat sesuai total nominal termasuk 3 digit kode unik.".into()),
+        updated_at: Utc::now(),
+    });
+
+    Ok(ok("Data tiket ditemukan", serde_json::json!({
+        "tickets": masked_tickets,
+        "bank_info": {
+            "bank_name": bank_setting.bank_name,
+            "account_name": bank_setting.account_name,
+            "account_number": bank_setting.account_number,
+            "qr_image_url": bank_setting.qr_image_url,
+            "instructions": bank_setting.instructions,
+        }
+    })))
+}
+
+// Handler upload bukti transfer tiket
+pub async fn upload_payment_proof(
+    State((pool, _config)): State<(PgPool, Config)>,
+    mut multipart: Multipart,
+) -> AppResult<impl axum::response::IntoResponse> {
+    let mut ticket_code: Option<String> = None;
+    let mut phone: Option<String> = None;
+    let mut uploaded_url: Option<String> = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "ticket_code" {
+            let val = field.text().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            ticket_code = Some(val.trim().to_string());
+        } else if name == "phone" {
+            let val = field.text().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            phone = Some(val.trim().replace(" ", "").replace("-", ""));
+        } else if name == "file" {
+            let content_type = field.content_type().unwrap_or("image/jpeg").to_string();
+            let bytes = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
+            let url = save_upload("proofs", "proof", &content_type, &bytes).await?;
+            uploaded_url = Some(url);
+        }
+    }
+
+    let code = ticket_code.ok_or_else(|| AppError::BadRequest("Kode tiket wajib diisi".into()))?;
+    let ph = phone.ok_or_else(|| AppError::BadRequest("Nomor HP wajib diisi".into()))?;
+    let url = uploaded_url.ok_or_else(|| AppError::BadRequest("File bukti transfer wajib diunggah".into()))?;
+
+    // Validasi kepemilikan tiket
+    let ticket = sqlx::query_as::<_, TicketPurchase>(
+        r#"SELECT tp.* FROM ticket_purchases tp
+           JOIN members m ON m.id = tp.member_id
+           WHERE tp.ticket_code = $1 AND REPLACE(REPLACE(m.phone, '-', ''), ' ', '') = $2"#
+    )
+    .bind(&code)
+    .bind(&ph)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Tiket tidak ditemukan atau nomor HP tidak cocok".into()))?;
+
+    if ticket.status == "dibatalkan" {
+        return Err(AppError::BadRequest("Tiket ini sudah dibatalkan atau kedaluwarsa".into()));
+    }
+
+    // Update payment_proof_url
+    sqlx::query(
+        "UPDATE ticket_purchases SET payment_proof_url = $1 WHERE id = $2"
+    )
+    .bind(&url)
+    .bind(ticket.id)
+    .execute(&pool)
+    .await?;
+
+    Ok(ok("Bukti pembayaran berhasil diunggah. Admin akan segera memverifikasi.", serde_json::json!({
+        "ticket_code": code,
+        "payment_proof_url": url,
+    })))
 }
 
 fn mask_name(name: &str) -> String {

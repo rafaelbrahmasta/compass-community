@@ -87,7 +87,12 @@ export const buyTicket = (data: import('../types').BuyTicketPayload) =>
   api.post<ApiResponse<import('../types').BuyTicketResult>>('/tickets/buy', data)
 
 export const checkTicket = (params: { ticket_code?: string; member_code?: string; phone?: string }) =>
-  api.get<ApiResponse<import('../types').TicketPurchase[]>>('/tickets/check', { params })
+  api.get<ApiResponse<any>>('/tickets/check', { params })
+
+export const uploadTicketPaymentProof = (formData: FormData) =>
+  api.post<ApiResponse<{ ticket_code: string; payment_proof_url: string }>>('/tickets/upload-proof', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
 
 // ============================================================
 // ADMIN ENDPOINTS
@@ -301,8 +306,14 @@ export const adminGetTicketPurchases = (params?: { match_id?: string; status?: s
 export const adminUpdateTicketStatus = (id: string, data: { status: string; notes?: string }) =>
   api.put<ApiResponse<import('../types').TicketPurchase>>(`/admin/tickets/${id}/status`, data)
 
-export const adminCheckinTicket = (code_or_payload: string) =>
-  api.post<ApiResponse<{ ticket_code: string; full_name: string; member_code: string; opponent_name: string; category_name: string; stadium: string }>>('/admin/tickets/checkin', { code_or_payload })
+export const adminCheckinTicket = (data: { code_or_payload: string; match_id?: string }) =>
+  api.post<ApiResponse<{ ticket_code: string; full_name: string; member_code: string; opponent_name: string; category_name: string; stadium: string }>>('/admin/tickets/checkin', data)
+
+export const adminGetTicketBankSettings = () =>
+  api.get<ApiResponse<{ bank_name: string; account_name: string; account_number: string; qr_image_url?: string; instructions?: string }>>('/admin/ticket-bank-settings')
+
+export const adminUpdateTicketBankSettings = (data: { bank_name: string; account_name: string; account_number: string; qr_image_url?: string; instructions?: string }) =>
+  api.put<ApiResponse<unknown>>('/admin/ticket-bank-settings', data)
 
 // Admin Admins Management
 export const adminGetAdmins = () =>

@@ -110,26 +110,87 @@ pub async fn update_match(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMatchRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    let mut tx = pool.begin().await?;
+
+    let current = sqlx::query_as::<_, Match>("SELECT * FROM matches WHERE id = $1 FOR UPDATE")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
+
+    let opponent_name = body.opponent_name.unwrap_or(current.opponent_name);
+    let stadium = body.stadium.unwrap_or(current.stadium);
+    let home_away = body.home_away.unwrap_or(current.home_away);
+    let competition = body.competition.unwrap_or(current.competition);
+    let status = body.status.unwrap_or(current.status);
+    let match_date = body.match_date.unwrap_or(current.match_date);
+    let match_time = body.match_time.unwrap_or(current.match_time);
+
+    // Skor: jika status diubah ke upcoming, kosongkan skor; jika ada body skor baru, gunakan nilainya
+    let (home_score, away_score) = if status == "upcoming" {
+        (None, None)
+    } else {
+        (body.home_score.or(current.home_score), body.away_score.or(current.away_score))
+    };
+
+    // Link tiket: jika dikirim string kosong "", ubah menjadi None sehingga bisa dikosongkan
+    let ticket_form_url = match body.ticket_form_url {
+        Some(url) if url.trim().is_empty() => None,
+        Some(url) => Some(url),
+        None => current.ticket_form_url,
+    };
+
+    // Hitung ulang jadwal reminder jika tanggal atau waktu laga berubah
+    if match_date != current.match_date || match_time != current.match_time {
+        let match_utc = match_date.and_time(match_time).and_utc() - Duration::hours(7);
+
+        sqlx::query(
+            "UPDATE reminders SET scheduled_at = $1 WHERE match_id = $2 AND remind_before = 'h_minus_1_day' AND email_sent = false"
+        )
+        .bind(match_utc - Duration::days(1))
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "UPDATE reminders SET scheduled_at = $1 WHERE match_id = $2 AND remind_before = 'h_minus_3_hours' AND email_sent = false"
+        )
+        .bind(match_utc - Duration::hours(3))
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     let m = sqlx::query_as::<_, Match>(
         "UPDATE matches SET
-         opponent_name = COALESCE($1, opponent_name),
-         match_date = COALESCE($2, match_date),
-         match_time = COALESCE($3, match_time),
-         stadium = COALESCE($4, stadium),
-         home_away = COALESCE($5, home_away),
-         competition = COALESCE($6, competition),
-         home_score = COALESCE($7, home_score),
-         away_score = COALESCE($8, away_score),
-         status = COALESCE($9, status),
-         ticket_form_url = COALESCE($10, ticket_form_url)
+         opponent_name = $1,
+         match_date = $2,
+         match_time = $3,
+         stadium = $4,
+         home_away = $5,
+         competition = $6,
+         home_score = $7,
+         away_score = $8,
+         status = $9,
+         ticket_form_url = $10
          WHERE id = $11 RETURNING *"
     )
-    .bind(body.opponent_name).bind(body.match_date).bind(body.match_time)
-    .bind(body.stadium).bind(body.home_away).bind(body.competition)
-    .bind(body.home_score).bind(body.away_score).bind(body.status)
-    .bind(body.ticket_form_url).bind(id)
-    .fetch_optional(&pool).await?
-    .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
+    .bind(opponent_name)
+    .bind(match_date)
+    .bind(match_time)
+    .bind(stadium)
+    .bind(home_away)
+    .bind(competition)
+    .bind(home_score)
+    .bind(away_score)
+    .bind(status)
+    .bind(ticket_form_url)
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
     Ok(ok("Pertandingan diperbarui", m))
 }
 
@@ -137,8 +198,30 @@ pub async fn delete_match(
     State((pool, _config)): State<(PgPool, Config)>,
     Path(id): Path<Uuid>,
 ) -> AppResult<impl axum::response::IntoResponse> {
-    sqlx::query("DELETE FROM matches WHERE id = $1").bind(id).execute(&pool).await?;
-    Ok(ok::<()>("Pertandingan dihapus", ()))
+    // Validasi apakah pertandingan sudah memiliki tiket yang dibeli
+    let purchase_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ticket_purchases WHERE match_id = $1"
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await?;
+
+    if purchase_count > 0 {
+        return Err(AppError::Conflict(
+            "Pertandingan tidak dapat dihapus karena sudah memiliki data pesanan/pembelian tiket.".into()
+        ));
+    }
+
+    let mut tx = pool.begin().await?;
+
+    // Bersihkan data relasi turunan (reminders dan kategori tiket) secara atomik
+    sqlx::query("DELETE FROM reminders WHERE match_id = $1").bind(id).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM ticket_categories WHERE match_id = $1").bind(id).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM matches WHERE id = $1").bind(id).execute(&mut *tx).await?;
+
+    tx.commit().await?;
+
+    Ok(ok::<()>("Pertandingan dan kategori tiket berhasil dihapus", ()))
 }
 
 #[derive(Deserialize)]

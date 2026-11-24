@@ -48,8 +48,11 @@ export interface TicketPurchase {
   ticket_code: string
   status: TicketPurchaseStatus
   price: string | number
+  unique_code?: number
+  total_price?: string | number
   qr_payload: string
   notes: string | null
+  payment_proof_url?: string | null
   created_at: string
   paid_at: string | null
   checked_in_at: string | null
@@ -85,6 +88,8 @@ export interface BuyTicketResult {
   qr_payload: string
   status: string
   price: string | number
+  unique_code: number
+  total_price: string | number
   expires_at: string
   member: {
     member_code: string
@@ -103,7 +108,9 @@ export interface BuyTicketResult {
     bank_name: string
     account_name: string
     account_number: string
+    qr_image_url?: string | null
   }
+  instructions?: string
 }
 
 export interface LoginRequest {

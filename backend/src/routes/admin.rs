@@ -113,6 +113,9 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/humanity", get(handlers::humanity::admin_get_humanity))
         .route("/admin/humanity", put(handlers::humanity::update_humanity))
         .route("/admin/humanity/qr", post(handlers::humanity::upload_qr))
+        // Rekening Khusus Pembayaran Tiket (terpisah dari donasi kemanusiaan)
+        .route("/admin/ticket-bank-settings", get(handlers::admin_tickets::admin_get_ticket_bank_settings))
+        .route("/admin/ticket-bank-settings", put(handlers::admin_tickets::admin_update_ticket_bank_settings))
         // Reminders
         .route("/admin/reminders", get(handlers::reminders::admin_get_reminders))
         // Pengaturan Situs

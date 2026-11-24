@@ -36,6 +36,7 @@ export default function AdminPembayaranTiket() {
 
   // Check-in Modal State
   const [checkinModalOpen, setCheckinModalOpen] = useState(false)
+  const [checkinMatchId, setCheckinMatchId] = useState('')
   const [scanInput, setScanInput] = useState('')
   const [checkinSuccessData, setCheckinSuccessData] = useState<any | null>(null)
 
@@ -44,6 +45,10 @@ export default function AdminPembayaranTiket() {
   const [selectedTicket, setSelectedTicket] = useState<TicketPurchase | null>(null)
   const [newStatus, setNewStatus] = useState<string>('lunas')
   const [notes, setNotes] = useState('')
+
+  // Preview Bukti Transfer Modal State
+  const [proofModalOpen, setProofModalOpen] = useState(false)
+  const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null)
 
   // Query Matches for filter dropdown
   const { data: matchesData } = useQuery({
@@ -86,7 +91,7 @@ export default function AdminPembayaranTiket() {
   })
 
   const checkinMutation = useMutation({
-    mutationFn: (code_or_payload: string) => adminCheckinTicket(code_or_payload),
+    mutationFn: (payload: { code_or_payload: string; match_id?: string }) => adminCheckinTicket(payload),
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['admin-tickets-list'] })
       setCheckinSuccessData(res.data.data)
@@ -97,6 +102,16 @@ export default function AdminPembayaranTiket() {
       toast.error(err.response?.data?.message || 'Gagal check-in tiket')
     },
   })
+
+  const handleCheckinSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!scanInput.trim()) return
+    setCheckinSuccessData(null)
+    checkinMutation.mutate({
+      code_or_payload: scanInput.trim(),
+      match_id: checkinMatchId || undefined,
+    })
+  }
 
   const handleOpenStatusModal = (ticket: TicketPurchase) => {
     setSelectedTicket(ticket)
@@ -114,15 +129,8 @@ export default function AdminPembayaranTiket() {
     })
   }
 
-  const handleCheckinSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!scanInput.trim()) return
-    setCheckinSuccessData(null)
-    checkinMutation.mutate(scanInput.trim())
-  }
-
   const handleExportCsv = () => {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api/v1'
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1'
     const token = localStorage.getItem('compass_token')
     const query = new URLSearchParams()
     if (matchFilter) query.append('match_id', matchFilter)
@@ -318,6 +326,23 @@ export default function AdminPembayaranTiket() {
                       <div className="font-mono text-gold font-bold">
                         Rp {Number(t.price).toLocaleString('id-ID')}
                       </div>
+                      {t.unique_code ? (
+                        <div className="text-[10px] text-white/50">
+                          Total: <strong className="text-white">Rp {Number(t.total_price || t.price).toLocaleString('id-ID')}</strong> (+{t.unique_code})
+                        </div>
+                      ) : null}
+                      {t.payment_proof_url ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedProofUrl(t.payment_proof_url || null)
+                            setProofModalOpen(true)
+                          }}
+                          className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:underline bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
+                        >
+                          Lihat Bukti Transfer
+                        </button>
+                      ) : null}
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       {getStatusBadge(t.status)}
@@ -377,6 +402,24 @@ export default function AdminPembayaranTiket() {
           <form onSubmit={handleCheckinSubmit} className="space-y-3">
             <div>
               <label className="block text-white/80 font-semibold uppercase mb-1">
+                Pilih Pertandingan Pintu Masuk
+              </label>
+              <select
+                value={checkinMatchId}
+                onChange={e => setCheckinMatchId(e.target.value)}
+                className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-gold"
+              >
+                <option value="">Semua Pertandingan (Cek Otomatis Tanggal Laga)</option>
+                {matches.map((m: Match) => (
+                  <option key={m.id} value={m.id}>
+                    PSS vs {m.opponent_name} ({m.match_date})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-white/80 font-semibold uppercase mb-1">
                 Scan QR Code / Masukkan Kode Tiket
               </label>
               <div className="relative">
@@ -431,7 +474,7 @@ export default function AdminPembayaranTiket() {
         </div>
       </Modal>
 
-      {/* UPDATE STATUS MODAL */}
+      {/* UPDATE STATUS MODAL (DENGAN STRICT STATE MACHINE) */}
       <Modal
         isOpen={statusModalOpen}
         onClose={() => setStatusModalOpen(false)}
@@ -443,54 +486,91 @@ export default function AdminPembayaranTiket() {
             <div className="text-white font-semibold">{selectedTicket?.full_name} ({selectedTicket?.member_code})</div>
             <div className="text-white/60">Laga: PSS vs {selectedTicket?.opponent_name}</div>
             <div className="text-gold font-bold">Kategori: {selectedTicket?.category_name} - Rp {Number(selectedTicket?.price || 0).toLocaleString('id-ID')}</div>
+            <div className="text-white/70">Status saat ini: <strong className="uppercase text-gold">{selectedTicket?.status}</strong></div>
           </div>
 
-          <div>
-            <label className="block text-white/80 font-semibold uppercase mb-1">
-              Pilih Status Tiket <span className="text-gold">*</span>
-            </label>
-            <select
-              value={newStatus}
-              onChange={e => setNewStatus(e.target.value)}
-              className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-gold"
-            >
-              <option value="menunggu_pembayaran">Menunggu Pembayaran</option>
-              <option value="lunas">Lunas (Konfirmasi Pembayaran Diterima)</option>
-              <option value="sudah_checkin">Sudah Check-in</option>
-              <option value="dibatalkan">Dibatalkan (Kembalikan Kuota Tiket)</option>
-            </select>
-          </div>
+          {selectedTicket?.status === 'sudah_checkin' || selectedTicket?.status === 'dibatalkan' ? (
+            <div className="bg-red-500/15 border border-red-500/30 rounded-xl p-3 text-red-300">
+              Tiket ini berstatus <strong>{selectedTicket?.status}</strong> (final) dan tidak dapat diubah kembali demi menjaga integritas kuota dan pintu gerbang.
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className="block text-white/80 font-semibold uppercase mb-1">
+                  Pilih Status Tiket <span className="text-gold">*</span>
+                </label>
+                <select
+                  value={newStatus}
+                  onChange={e => setNewStatus(e.target.value)}
+                  className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3.5 py-2.5 text-white text-sm focus:outline-none focus:border-gold"
+                >
+                  {selectedTicket?.status === 'menunggu_pembayaran' && (
+                    <>
+                      <option value="lunas">Lunas (Konfirmasi Pembayaran Diterima)</option>
+                      <option value="dibatalkan">Dibatalkan (Kembalikan Kuota)</option>
+                    </>
+                  )}
+                  {selectedTicket?.status === 'lunas' && (
+                    <>
+                      <option value="sudah_checkin">Sudah Check-in</option>
+                      <option value="dibatalkan">Dibatalkan / Refund (Kembalikan Kuota)</option>
+                    </>
+                  )}
+                </select>
+              </div>
 
-          <div>
-            <label className="block text-white/80 font-semibold uppercase mb-1">
-              Catatan Admin (Bukti Transfer / Alasan)
-            </label>
-            <input
-              type="text"
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Contoh: Transfer BCA a/n Bagus telah diverifikasi"
-              className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3.5 py-2.5 text-white placeholder-white/30 text-sm focus:outline-none focus:border-gold"
-            />
-          </div>
+              <div>
+                <label className="block text-white/80 font-semibold uppercase mb-1">
+                  Catatan Admin (Bukti Transfer / Alasan)
+                </label>
+                <input
+                  type="text"
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Contoh: Transfer BCA telah diverifikasi"
+                  className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3.5 py-2.5 text-white placeholder-white/30 text-sm focus:outline-none focus:border-gold"
+                />
+              </div>
 
-          <div className="pt-2 flex gap-3">
-            <button
-              type="button"
-              onClick={() => setStatusModalOpen(false)}
-              className="w-1/3 py-2.5 rounded-xl border border-white/20 text-white/80 hover:bg-white/5 text-sm transition-colors"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              disabled={updateStatusMutation.isPending}
-              className="w-2/3 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 disabled:opacity-50 transition-all"
-            >
-              {updateStatusMutation.isPending ? 'Menyimpan...' : 'Simpan Status'}
-            </button>
-          </div>
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStatusModalOpen(false)}
+                  className="w-1/3 py-2.5 rounded-xl border border-white/20 text-white/80 hover:bg-white/5 text-sm transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateStatusMutation.isPending}
+                  className="w-2/3 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 disabled:opacity-50 transition-all"
+                >
+                  {updateStatusMutation.isPending ? 'Menyimpan...' : 'Simpan Status'}
+                </button>
+              </div>
+            </>
+          )}
         </form>
+      </Modal>
+
+      {/* MODAL PREVIEW BUKTI TRANSFER */}
+      <Modal
+        isOpen={proofModalOpen}
+        onClose={() => setProofModalOpen(false)}
+        title="Bukti Pembayaran / Transfer"
+        size="md"
+      >
+        <div className="text-center p-2">
+          {selectedProofUrl ? (
+            <img
+              src={selectedProofUrl}
+              alt="Bukti Transfer"
+              className="max-h-[70vh] mx-auto rounded-xl object-contain border border-white/10 shadow-lg"
+            />
+          ) : (
+            <p className="text-white/40 py-8 italic">Tidak ada gambar bukti transfer.</p>
+          )}
+        </div>
       </Modal>
     </div>
   )

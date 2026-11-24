@@ -15,10 +15,12 @@ import {
   ArrowLeft,
   QrCode,
   ShieldCheck,
+  Upload,
 } from 'lucide-react'
+import Modal from '../../components/common/Modal'
 import Reveal from '../../components/common/Reveal'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
-import { checkTicket } from '../../services/endpoints'
+import { checkTicket, uploadTicketPaymentProof } from '../../services/endpoints'
 import type { TicketPurchase } from '../../types'
 
 export default function CekTiket() {
@@ -28,7 +30,14 @@ export default function CekTiket() {
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [tickets, setTickets] = useState<TicketPurchase[] | null>(null)
+  const [bankInfo, setBankInfo] = useState<any | null>(null)
   const [searched, setSearched] = useState(false)
+
+  // Upload Proof State
+  const [uploadProofModalOpen, setUploadProofModalOpen] = useState(false)
+  const [targetTicket, setTargetTicket] = useState<TicketPurchase | null>(null)
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +51,10 @@ export default function CekTiket() {
           : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim() }
 
       const res = await checkTicket(params)
-      setTickets(res.data.data)
+      const resData = res.data.data
+      const list = Array.isArray(resData) ? resData : (resData?.tickets || [])
+      setTickets(list)
+      if (resData?.bank_info) setBankInfo(resData.bank_info)
       toast.success('Data tiket berhasil ditemukan!')
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
@@ -50,6 +62,38 @@ export default function CekTiket() {
       toast.error(error.response?.data?.message || 'Tiket tidak ditemukan. Periksa kembali data Anda.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUploadProof = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!targetTicket || !proofFile) return
+
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('ticket_code', targetTicket.ticket_code)
+      form.append('phone', phone.trim())
+      form.append('file', proofFile)
+
+      const res = await uploadTicketPaymentProof(form)
+      toast.success(res.data.message || 'Bukti pembayaran berhasil diunggah!')
+      setUploadProofModalOpen(false)
+      setProofFile(null)
+
+      // Refresh tiket
+      if (ticketCode || memberCode) {
+        const params = searchMode === 'code'
+          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim() }
+          : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim() }
+        const r = await checkTicket(params)
+        const d = r.data.data
+        setTickets(Array.isArray(d) ? d : (d?.tickets || []))
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal mengunggah bukti pembayaran')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -303,11 +347,25 @@ export default function CekTiket() {
                             <span className="font-bold text-white text-sm">{t.category_name}</span>
                           </div>
                           <div>
-                            <span className="text-white/40 block">Harga Tiket:</span>
+                            <span className="text-white/40 block">Harga Dasar:</span>
                             <span className="font-bold text-gold text-sm font-mono">
                               Rp {Number(t.price).toLocaleString('id-ID')}
                             </span>
                           </div>
+                          {t.unique_code ? (
+                            <div className="col-span-2 bg-gold/10 border border-gold/30 rounded-xl p-3 flex items-center justify-between">
+                              <div>
+                                <span className="text-[11px] text-white/70 block">Kode Unik Transfer:</span>
+                                <span className="font-mono font-bold text-gold text-xs">+{t.unique_code}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[11px] text-white/70 block">TOTAL TRANSFER:</span>
+                                <span className="font-mono font-black text-white text-base">
+                                  Rp {Number(t.total_price || t.price).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                           <div>
                             <span className="text-white/40 block">Nama Anggota:</span>
                             <span className="font-semibold text-white">{t.full_name}</span>
@@ -319,8 +377,34 @@ export default function CekTiket() {
                         </div>
 
                         {t.status === 'menunggu_pembayaran' && (
-                          <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs text-amber-300">
-                            <strong>Perhatian:</strong> Tiket ini belum lunas. Silakan transfer sesuai nominal ke rekening resmi COMPASS dan simpan bukti transfer.
+                          <div className="space-y-3">
+                            <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs text-amber-300 space-y-1">
+                              <div><strong>Penting:</strong> Harap transfer tepat hingga 3 digit terakhir untuk verifikasi cepat.</div>
+                              {bankInfo && (
+                                <div className="text-white/80 mt-1 font-mono">
+                                  Bank: {bankInfo.bank_name} | No. Rekening: <strong>{bankInfo.account_number}</strong> (a/n {bankInfo.account_name})
+                                </div>
+                              )}
+                            </div>
+
+                            {t.payment_proof_url ? (
+                              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 flex items-center gap-2 text-xs text-emerald-400">
+                                <CheckCircle2 size={16} />
+                                <span>Bukti transfer telah diunggah. Menunggu verifikasi admin.</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTargetTicket(t)
+                                  setUploadProofModalOpen(true)
+                                }}
+                                className="w-full py-2.5 px-4 rounded-xl bg-gold/20 hover:bg-gold/30 text-gold border border-gold/40 font-heading font-black uppercase tracking-wider text-xs flex items-center justify-center gap-2 transition-all"
+                              >
+                                <Upload size={14} />
+                                <span>Unggah Bukti Transfer</span>
+                              </button>
+                            )}
                           </div>
                         )}
 
@@ -380,6 +464,62 @@ export default function CekTiket() {
             )}
           </div>
         )}
+        {/* MODAL UNGGAH BUKTI TRANSFER */}
+        <Modal
+          isOpen={uploadProofModalOpen}
+          onClose={() => setUploadProofModalOpen(false)}
+          title={`Unggah Bukti Transfer: ${targetTicket?.ticket_code}`}
+          size="md"
+        >
+          <form onSubmit={handleUploadProof} className="space-y-4 text-xs">
+            <div className="bg-white/5 p-3 rounded-xl border border-white/10 space-y-1">
+              <div className="text-white font-semibold">PSS Sleman vs {targetTicket?.opponent_name}</div>
+              <div className="text-gold font-bold">
+                Total Tagihan: Rp {Number(targetTicket?.total_price || targetTicket?.price || 0).toLocaleString('id-ID')}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-white/80 font-semibold uppercase mb-1">
+                Pilih Foto / Gambar Bukti Transfer (JPG, PNG, WebP max 5MB) <span className="text-gold">*</span>
+              </label>
+              <input
+                type="file"
+                required
+                accept="image/jpeg,image/png,image/webp"
+                onChange={e => setProofFile(e.target.files?.[0] || null)}
+                className="w-full bg-[#060a08] border border-white/20 rounded-xl px-3.5 py-2.5 text-white text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-gold file:text-dark file:font-bold hover:file:brightness-110"
+              />
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setUploadProofModalOpen(false)}
+                className="w-1/3 py-2.5 rounded-xl border border-white/20 text-white/80 hover:bg-white/5 text-sm transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={uploading || !proofFile}
+                className="w-2/3 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5"
+              >
+                {uploading ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    <span>Mengunggah...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload size={14} />
+                    <span>Unggah Bukti</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </Modal>
       </div>
     </div>
   )

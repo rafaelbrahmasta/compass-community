@@ -27,5 +27,6 @@ pub fn public_routes(pool: PgPool, config: Config) -> Router {
         // Pembelian & Pengecekan Tiket Langsung (Revisi 6)
         .route("/tickets/buy", post(handlers::tickets_purchase::buy_ticket))
         .route("/tickets/check", get(handlers::tickets_purchase::check_ticket))
+        .route("/tickets/upload-proof", post(handlers::tickets_purchase::upload_payment_proof))
         .with_state((pool, config))
 }

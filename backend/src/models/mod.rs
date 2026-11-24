@@ -123,9 +123,14 @@ pub struct TicketPurchase {
     pub match_id: Uuid,
     pub category_id: Uuid,
     pub price: rust_decimal::Decimal,
+    #[sqlx(default)]
+    pub unique_code: i32,
+    #[sqlx(default)]
+    pub total_price: rust_decimal::Decimal,
     pub status: String,
     pub qr_payload: String,
     pub notes: Option<String>,
+    pub payment_proof_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub checked_in_at: Option<DateTime<Utc>>,
@@ -142,7 +147,22 @@ pub struct Reminder {
     pub remind_before: String,
     pub email_sent: bool,
     pub scheduled_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub retry_count: i32,
+    pub last_error: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+// ===== TICKET BANK SETTINGS =====
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
+pub struct TicketBankSettings {
+    pub id: Uuid,
+    pub bank_name: String,
+    pub account_name: String,
+    pub account_number: String,
+    pub qr_image_url: Option<String>,
+    pub instructions: Option<String>,
+    pub updated_at: DateTime<Utc>,
 }
 
 // ===== MERCH =====
