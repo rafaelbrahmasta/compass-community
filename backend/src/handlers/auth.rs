@@ -35,13 +35,14 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     let client_ip = crate::utils::extract_ip(&headers, Some(conn_addr));
-    let rate_key = format!("login:{}:{}", client_ip, body.email.trim().to_lowercase());
+    let clean_email = body.email.trim().to_lowercase();
+    let rate_key = format!("login:{}:{}", client_ip, clean_email);
     crate::utils::rate_limiter::login_limiter().check(&rate_key)?;
 
     let admin = sqlx::query_as::<_, Admin>(
-        "SELECT * FROM admins WHERE email = $1"
+        "SELECT * FROM admins WHERE LOWER(TRIM(email)) = $1"
     )
-    .bind(&body.email)
+    .bind(&clean_email)
     .fetch_optional(&pool)
     .await?
     .ok_or_else(|| AppError::Unauthorized("Email atau password salah".into()))?;
