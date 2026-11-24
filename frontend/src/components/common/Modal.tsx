@@ -36,28 +36,28 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 flex items-center justify-center animate-fade-in"
       aria-modal="true"
       role="dialog"
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Content */}
       <div
         tabIndex={-1}
-        className={`relative w-full ${sizeClasses[size]} bg-dark-card border border-gold/30 rounded-lg shadow-2xl animate-slide-up focus:outline-none`}
+        className={`relative w-full ${sizeClasses[size]} max-h-[90vh] flex flex-col bg-dark-card border border-gold/30 rounded-2xl shadow-2xl animate-slide-up focus:outline-none my-auto z-10`}
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-5 border-b border-white/10">
-            <h3 className="font-heading text-xl font-bold text-white uppercase tracking-wide">{title}</h3>
+          <div className="flex items-center justify-between p-5 border-b border-white/10 shrink-0 bg-dark-card/95 backdrop-blur-sm rounded-t-2xl">
+            <h3 className="font-heading text-lg sm:text-xl font-bold text-white uppercase tracking-wide truncate pr-2">{title}</h3>
             <button
               onClick={onClose}
-              className="text-white/60 hover:text-gold transition-colors p-1"
+              className="text-white/60 hover:text-gold transition-colors p-1 rounded-lg hover:bg-white/5 shrink-0"
               aria-label="Tutup modal"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,7 +71,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
         {!title && (
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 text-white/60 hover:text-gold transition-colors p-1 z-10"
+            className="absolute top-3 right-3 text-white/60 hover:text-gold transition-colors p-1.5 rounded-lg hover:bg-white/5 z-20"
             aria-label="Tutup modal"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +80,8 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
           </button>
         )}
 
-        <div className="p-5">
+        {/* Scrollable Body */}
+        <div className="p-5 sm:p-6 overflow-y-auto overscroll-contain flex-1">
           {children}
         </div>
       </div>

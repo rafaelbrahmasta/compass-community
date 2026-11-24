@@ -644,7 +644,7 @@ function CheckoutForm({
           />
         </div>
 
-        <div>
+        <div className="sm:col-span-2">
           <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
             PIN Keamanan Anggota (6 Digit) <span className="text-gold">*</span>
           </label>
@@ -676,7 +676,8 @@ function CheckoutForm({
         />
       </div>
 
-      <div className="pt-2 flex gap-3">
+      {/* Sticky footer action buttons */}
+      <div className="sticky bottom-0 bg-[#0c130f]/95 backdrop-blur-md pt-3 pb-1 -mx-2 px-2 border-t border-white/10 flex gap-3 mt-4">
         <button
           type="button"
           onClick={onCancel}
@@ -687,7 +688,7 @@ function CheckoutForm({
         <button
           type="submit"
           disabled={submitting || !selectedCategoryId}
-          className="w-2/3 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+          className="w-2/3 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2 shadow-lg shadow-gold/20"
         >
           {submitting ? (
             <>
