@@ -48,5 +48,8 @@ slug = "0.1"
 # CSV parsing
 csv = "1"
 
+# HTML sanitization
+ammonia = "4.0"
+
 # Random / ID
 rand = "0.8"

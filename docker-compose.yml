@@ -4,15 +4,16 @@ services:
     container_name: compass_db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: compass
-      POSTGRES_PASSWORD: compass123
-      POSTGRES_DB: compass_db
+      POSTGRES_USER: ${POSTGRES_USER:-compass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-compass123}
+      POSTGRES_DB: ${POSTGRES_DB:-compass_db}
     ports:
-      - "5432:5432"
+      # Amankan port DB agar hanya bisa diakses via localhost host, tidak terbuka ke publik
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U compass -d compass_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compass} -d ${POSTGRES_DB:-compass_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -27,18 +28,19 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://compass:compass123@db:5432/compass_db
-      JWT_SECRET: compass_super_secret_jwt_key_sangat_panjang_dan_aman_2026
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: "587"
-      SMTP_USER: your_email@gmail.com
-      SMTP_PASS: your_app_password
-      SMTP_FROM: COMPASS <noreply@compass.id>
-      ADMIN_EMAIL: admin@compass.id
-      ADMIN_PASSWORD: Admin@compass123
+      DATABASE_URL: postgres://${POSTGRES_USER:-compass}:${POSTGRES_PASSWORD:-compass123}@db:5432/${POSTGRES_DB:-compass_db}
+      JWT_SECRET: ${JWT_SECRET:-compass_super_secret_jwt_key_sangat_panjang_dan_aman_2026}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-COMPASS <noreply@compass.id>}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@compass.id}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@compass123}
       UPLOAD_DIR: /app/uploads
-      FRONTEND_URL: http://localhost:5173
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       PORT: "8080"
+      SEED_DEMO: ${SEED_DEMO:-false}
     ports:
       - "8080:8080"
     volumes:

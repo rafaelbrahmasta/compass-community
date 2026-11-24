@@ -34,14 +34,18 @@ pub async fn require_admin_1_or_above(
 }
 
 fn require_roles_inner(request: &Request, allowed_roles: &[&str]) -> Result<(), AppError> {
-    let claims = request
-        .extensions()
-        .get::<Claims>()
-        .ok_or_else(|| AppError::Unauthorized("Token tidak ditemukan".into()))?;
+    // Utamakan data live Admin dari database yang dicek di auth_middleware per-request
+    let role = if let Some(admin) = request.extensions().get::<crate::models::Admin>() {
+        admin.role.clone()
+    } else if let Some(claims) = request.extensions().get::<Claims>() {
+        claims.role.clone()
+    } else {
+        return Err(AppError::Unauthorized("Token otentikasi tidak ditemukan".into()));
+    };
 
-    if !allowed_roles.contains(&claims.role.as_str()) {
+    if !allowed_roles.contains(&role.as_str()) {
         return Err(AppError::Forbidden(
-            format!("Akses ditolak. Role '{}' tidak memiliki izin untuk operasi ini.", claims.role)
+            format!("Akses ditolak. Role '{}' tidak memiliki izin untuk operasi ini.", role)
         ));
     }
     Ok(())

@@ -1,5 +1,7 @@
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import DOMPurify from 'dompurify'
+import { User, Calendar, ArrowLeft } from 'lucide-react'
 import { getNewsDetail } from '../../services/endpoints'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
@@ -53,11 +55,13 @@ export default function BeritaDetail() {
 
           <div className="flex flex-wrap items-center gap-4 mt-4 text-xs text-white/50 border-b border-white/10 pb-6">
             <span className="flex items-center gap-1.5">
-              <span>✍️</span> Penulis: <strong className="text-white">{news.author}</strong>
+              <User size={14} className="text-gold" />
+              <span>Penulis: <strong className="text-white">{news.author}</strong></span>
             </span>
             <span>•</span>
             <span className="flex items-center gap-1.5">
-              <span>📅</span> {news.published_at ? new Date(news.published_at).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Baru saja'}
+              <Calendar size={14} className="text-gold" />
+              <span>{news.published_at ? new Date(news.published_at).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Baru saja'}</span>
             </span>
           </div>
         </div>
@@ -73,16 +77,17 @@ export default function BeritaDetail() {
           </div>
         )}
 
-        {/* Rich Text Content */}
+        {/* Rich Text Content dengan DOMPurify sanitization */}
         <article
           className="prose prose-invert prose-gold max-w-none text-white/80 leading-relaxed text-base sm:text-lg space-y-4"
-          dangerouslySetInnerHTML={{ __html: news.content }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(news.content) }}
         />
 
         {/* Share & Back */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <Link to="/berita" className="btn-outline-gold rounded-lg text-sm px-6 py-2.5">
-            ← Kembali ke Semua Berita
+          <Link to="/berita" className="btn-outline-gold rounded-lg text-sm px-6 py-2.5 flex items-center gap-2">
+            <ArrowLeft size={16} />
+            <span>Kembali ke Semua Berita</span>
           </Link>
           <div className="text-xs text-white/40">
             Diterbitkan resmi oleh redaksi COMPASS

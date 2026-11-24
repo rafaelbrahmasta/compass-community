@@ -68,10 +68,12 @@ pub async fn create_news(State((pool, _config)): State<(PgPool, Config)>, Json(b
     let slug = unique_slug(&body.title, &id.to_string());
     let status = body.status.unwrap_or_else(|| "draft".into());
     let published_at = if status == "published" { Some(Utc::now()) } else { None };
+    // Sanitasi HTML content dengan ammonia untuk mencegah stored XSS
+    let clean_content = ammonia::clean(&body.content);
 
     let news = sqlx::query_as::<_, News>(
         "INSERT INTO news (id, title, slug, content, summary, author, status, published_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *"
-    ).bind(id).bind(&body.title).bind(&slug).bind(&body.content).bind(&body.summary)
+    ).bind(id).bind(&body.title).bind(&slug).bind(&clean_content).bind(&body.summary)
     .bind(&body.author).bind(&status).bind(published_at)
     .fetch_one(&pool).await?;
     Ok(ok("Berita ditambahkan", news))
@@ -79,12 +81,15 @@ pub async fn create_news(State((pool, _config)): State<(PgPool, Config)>, Json(b
 
 pub async fn update_news(State((pool, _config)): State<(PgPool, Config)>, Path(id): Path<Uuid>, Json(body): Json<NewsRequest>) -> AppResult<impl axum::response::IntoResponse> {
     let status = body.status.unwrap_or_else(|| "draft".into());
+    // Sanitasi HTML content dengan ammonia untuk mencegah stored XSS
+    let clean_content = ammonia::clean(&body.content);
+
     let news = sqlx::query_as::<_, News>(
         "UPDATE news SET title=$1, content=$2, summary=$3, author=$4, status=$5,
          published_at = CASE WHEN $5 = 'published' AND published_at IS NULL THEN NOW() ELSE published_at END,
          updated_at = NOW()
          WHERE id=$6 RETURNING *"
-    ).bind(&body.title).bind(&body.content).bind(&body.summary).bind(&body.author).bind(&status).bind(id)
+    ).bind(&body.title).bind(&clean_content).bind(&body.summary).bind(&body.author).bind(&status).bind(id)
     .fetch_optional(&pool).await?.ok_or_else(|| AppError::NotFound("Berita tidak ditemukan".into()))?;
     Ok(ok("Berita diperbarui", news))
 }

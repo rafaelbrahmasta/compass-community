@@ -17,7 +17,9 @@ pub async fn run_seeder(pool: &PgPool, config: &Config) -> anyhow::Result<()> {
     seed_gallery(pool).await?;
     seed_agendas(pool).await?;
     seed_news(pool).await?;
-    seed_members(pool).await?;
+    if config.seed_demo {
+        seed_members(pool).await?;
+    }
     Ok(())
 }
 
@@ -52,48 +54,51 @@ async fn seed_admin(pool: &PgPool, config: &Config) -> anyhow::Result<()> {
             .execute(pool).await?;
     }
 
-    // Seed admin_1 (Admin Konten 1)
-    let admin1_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin1@compass.id'")
-        .fetch_optional(pool).await?;
-    if admin1_exists.is_none() {
-        let hash1 = Argon2::default()
-            .hash_password("Admin1@compass123".as_bytes(), &salt)
-            .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_1: {}", e))?
-            .to_string();
+    // Hanya seed akun contoh admin_1 & admin_2 jika flag SEED_DEMO aktif di development
+    if config.seed_demo {
+        // Seed admin_1 (Admin Konten 1)
+        let admin1_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin1@compass.id'")
+            .fetch_optional(pool).await?;
+        if admin1_exists.is_none() {
+            let hash1 = Argon2::default()
+                .hash_password("Admin1@compass123".as_bytes(), &salt)
+                .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_1: {}", e))?
+                .to_string();
 
-        sqlx::query(
-            "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
-        )
-        .bind(Uuid::new_v4())
-        .bind("admin1@compass.id")
-        .bind(&hash1)
-        .bind("Admin Konten 1")
-        .bind("admin_1")
-        .bind(true)
-        .execute(pool).await?;
-        tracing::info!("Admin seeder: akun admin_1 dibuat (admin1@compass.id)");
-    }
+            sqlx::query(
+                "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
+            )
+            .bind(Uuid::new_v4())
+            .bind("admin1@compass.id")
+            .bind(&hash1)
+            .bind("Admin Konten 1")
+            .bind("admin_1")
+            .bind(true)
+            .execute(pool).await?;
+            tracing::info!("Admin seeder: akun demo admin_1 dibuat (admin1@compass.id)");
+        }
 
-    // Seed admin_2 (Admin Konten 2)
-    let admin2_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin2@compass.id'")
-        .fetch_optional(pool).await?;
-    if admin2_exists.is_none() {
-        let hash2 = Argon2::default()
-            .hash_password("Admin2@compass123".as_bytes(), &salt)
-            .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_2: {}", e))?
-            .to_string();
+        // Seed admin_2 (Admin Konten 2)
+        let admin2_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM admins WHERE email = 'admin2@compass.id'")
+            .fetch_optional(pool).await?;
+        if admin2_exists.is_none() {
+            let hash2 = Argon2::default()
+                .hash_password("Admin2@compass123".as_bytes(), &salt)
+                .map_err(|e| anyhow::anyhow!("Gagal hashing password admin_2: {}", e))?
+                .to_string();
 
-        sqlx::query(
-            "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
-        )
-        .bind(Uuid::new_v4())
-        .bind("admin2@compass.id")
-        .bind(&hash2)
-        .bind("Admin Konten 2")
-        .bind("admin_2")
-        .bind(true)
-        .execute(pool).await?;
-        tracing::info!("Admin seeder: akun admin_2 dibuat (admin2@compass.id)");
+            sqlx::query(
+                "INSERT INTO admins (id, email, password_hash, name, role, is_active) VALUES ($1, $2, $3, $4, $5, $6)"
+            )
+            .bind(Uuid::new_v4())
+            .bind("admin2@compass.id")
+            .bind(&hash2)
+            .bind("Admin Konten 2")
+            .bind("admin_2")
+            .bind(true)
+            .execute(pool).await?;
+            tracing::info!("Admin seeder: akun demo admin_2 dibuat (admin2@compass.id)");
+        }
     }
 
     Ok(())

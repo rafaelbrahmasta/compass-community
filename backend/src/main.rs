@@ -94,9 +94,39 @@ async fn build_app(
                 next.run(req).await
             }
         }))
+        // Layer Security Headers (CSP, X-Frame-Options, X-Content-Type-Options)
+        .layer(from_fn(security_headers_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(12 * 1024 * 1024)) // 12 MB body limit untuk upload gambar
         .layer(cors);
 
     Ok(app)
+}
+
+async fn security_headers_middleware(req: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+    let mut response = next.run(req).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        axum::http::header::X_CONTENT_TYPE_OPTIONS,
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        axum::http::header::X_FRAME_OPTIONS,
+        axum::http::HeaderValue::from_static("DENY"),
+    );
+    headers.insert(
+        axum::http::header::X_XSS_PROTECTION,
+        axum::http::HeaderValue::from_static("1; mode=block"),
+    );
+    headers.insert(
+        axum::http::header::REFERRER_POLICY,
+        axum::http::HeaderValue::from_static("strict-origin-when-cross-origin"),
+    );
+    headers.insert(
+        axum::http::header::HeaderName::from_static("content-security-policy"),
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' http: https: ws: wss:; frame-ancestors 'none';"
+        ),
+    );
+    response
 }

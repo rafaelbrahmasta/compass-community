@@ -9,6 +9,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
+use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{HumanitySettings, Member, TicketCategory, TicketPurchase};
@@ -20,6 +21,7 @@ pub struct BuyTicketRequest {
     pub category_id: Uuid,
     pub member_code: String,
     pub phone: String,
+    pub pin: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -92,6 +94,34 @@ pub async fn buy_ticket(
     if !member.is_active {
         return Err(AppError::Forbidden(
             "Akun anggota Anda sedang dinonaktifkan. Hubungi admin Compass.".into()
+        ));
+    }
+
+    // Validasi PIN Anggota untuk mencegah orang lain menghabiskan jatah tiket
+    let pin_input = body.pin.as_deref().unwrap_or("").trim();
+    if pin_input.is_empty() {
+        return Err(AppError::BadRequest("PIN anggota 6 digit wajib diisi".into()));
+    }
+
+    let is_pin_valid = if let Some(ref pin_hash) = member.pin_hash {
+        if let Ok(parsed_hash) = PasswordHash::new(pin_hash) {
+            Argon2::default().verify_password(pin_input.as_bytes(), &parsed_hash).is_ok()
+        } else {
+            pin_hash == pin_input
+        }
+    } else {
+        // Anggota tanpa PIN khusus: default PIN adalah 6 digit terakhir nomor HP atau 123456
+        let fallback_pin = if clean_phone.len() >= 6 {
+            &clean_phone[clean_phone.len() - 6..]
+        } else {
+            "123456"
+        };
+        pin_input == fallback_pin || pin_input == "123456"
+    };
+
+    if !is_pin_valid {
+        return Err(AppError::Unauthorized(
+            "PIN Anggota salah. Masukkan PIN keamanan Anda (default: 6 digit terakhir nomor HP).".into()
         ));
     }
 
@@ -308,9 +338,15 @@ pub async fn check_ticket(
     let member_code = params.member_code.as_deref().map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty());
     let phone = params.phone.as_deref().map(|s| s.trim().replace(" ", "").replace("-", "")).filter(|s| !s.is_empty());
 
-    if ticket_code.is_none() && (member_code.is_none() || phone.is_none()) {
+    if phone.is_none() {
         return Err(AppError::BadRequest(
-            "Masukkan Kode Tiket (TCK-...) atau kombinasi Kode Anggota dan Nomor HP".into()
+            "Nomor HP terdaftar wajib dimasukkan demi verifikasi privasi dan keamanan tiket".into()
+        ));
+    }
+
+    if ticket_code.is_none() && member_code.is_none() {
+        return Err(AppError::BadRequest(
+            "Masukkan Kode Tiket (TCK-...) atau Kode Anggota".into()
         ));
     }
 
@@ -325,7 +361,7 @@ pub async fn check_ticket(
            JOIN members m ON m.id = tp.member_id
            JOIN matches mt ON mt.id = tp.match_id
            JOIN ticket_categories tc ON tc.id = tp.category_id
-           WHERE ($1::text IS NOT NULL AND tp.ticket_code = $1)
+           WHERE ($1::text IS NOT NULL AND tp.ticket_code = $1 AND REPLACE(REPLACE(m.phone, '-', ''), ' ', '') = $3)
               OR ($2::text IS NOT NULL AND $3::text IS NOT NULL
                   AND UPPER(m.member_code) = $2
                   AND REPLACE(REPLACE(m.phone, '-', ''), ' ', '') = $3)
@@ -339,9 +375,47 @@ pub async fn check_ticket(
 
     if tickets.is_empty() {
         return Err(AppError::NotFound(
-            "Tiket tidak ditemukan. Periksa kembali kode tiket atau data anggota Anda.".into()
+            "Tiket tidak ditemukan atau nomor HP tidak cocok. Periksa kembali data Anda.".into()
         ));
     }
 
-    Ok(ok("Data tiket ditemukan", tickets))
+    // Samarkan data sensitif anggota (nama dan nomor HP) untuk mencegah kebocoran informasi
+    let masked_tickets: Vec<TicketDetailItem> = tickets.into_iter().map(|mut t| {
+        t.full_name = mask_name(&t.full_name);
+        t.phone = mask_phone(&t.phone);
+        t
+    }).collect();
+
+    Ok(ok("Data tiket ditemukan", masked_tickets))
+}
+
+fn mask_name(name: &str) -> String {
+    name.split_whitespace()
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => {
+                    let rest = chars.count();
+                    if rest > 0 {
+                        format!("{}{}", first, "*".repeat(rest))
+                    } else {
+                        first.to_string()
+                    }
+                }
+                None => "".to_string(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn mask_phone(phone: &str) -> String {
+    let clean = phone.trim().replace(" ", "").replace("-", "");
+    if clean.len() <= 6 {
+        return "***".to_string();
+    }
+    let prefix = &clean[..4];
+    let suffix = &clean[clean.len() - 3..];
+    let stars = "*".repeat(clean.len() - 7);
+    format!("{}{}{}", prefix, stars, suffix)
 }

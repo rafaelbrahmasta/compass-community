@@ -14,6 +14,7 @@ pub struct Config {
     pub upload_dir: String,
     pub frontend_url: String,
     pub port: u16,
+    pub seed_demo: bool,
 }
 
 impl Config {
@@ -42,6 +43,9 @@ impl Config {
                 .unwrap_or_else(|_| "8080".into())
                 .parse()
                 .unwrap_or(8080),
+            seed_demo: std::env::var("SEED_DEMO")
+                .map(|v| v.to_lowercase() == "true" || v == "1")
+                .unwrap_or(false),
         })
     }
 }

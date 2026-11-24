@@ -47,6 +47,7 @@ export default function Tiket() {
   const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [memberCode, setMemberCode] = useState('')
   const [phone, setPhone] = useState('')
+  const [pin, setPin] = useState('')
   const [notes, setNotes] = useState('')
   const [submittingCheckout, setSubmittingCheckout] = useState(false)
   const [purchaseResult, setPurchaseResult] = useState<BuyTicketResult | null>(null)
@@ -63,6 +64,7 @@ export default function Tiket() {
     setSelectedCategoryId('')
     setMemberCode('')
     setPhone('')
+    setPin('')
     setNotes('')
     setPurchaseResult(null)
     setCheckoutModalOpen(true)
@@ -107,6 +109,7 @@ export default function Tiket() {
         category_id: selectedCategoryId,
         member_code: memberCode,
         phone,
+        pin,
         notes: notes ? notes : undefined,
       })
       setPurchaseResult(res.data.data)
@@ -246,6 +249,8 @@ export default function Tiket() {
             setMemberCode={setMemberCode}
             phone={phone}
             setPhone={setPhone}
+            pin={pin}
+            setPin={setPin}
             notes={notes}
             setNotes={setNotes}
             submitting={submittingCheckout}
@@ -516,6 +521,8 @@ function CheckoutForm({
   setMemberCode,
   phone,
   setPhone,
+  pin,
+  setPin,
   notes,
   setNotes,
   submitting,
@@ -529,6 +536,8 @@ function CheckoutForm({
   setMemberCode: (code: string) => void
   phone: string
   setPhone: (p: string) => void
+  pin: string
+  setPin: (pin: string) => void
   notes: string
   setNotes: (n: string) => void
   submitting: boolean
@@ -629,6 +638,24 @@ function CheckoutForm({
             placeholder="Contoh: 08123456789"
             className="w-full bg-[#0a110d] border border-white/20 rounded-xl px-3.5 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono"
           />
+        </div>
+
+        <div>
+          <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
+            PIN Keamanan Anggota (6 Digit) <span className="text-gold">*</span>
+          </label>
+          <input
+            type="password"
+            maxLength={6}
+            required
+            value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="6 digit PIN (default: 6 digit terakhir HP)"
+            className="w-full bg-[#0a110d] border border-white/20 rounded-xl px-3.5 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono tracking-widest"
+          />
+          <p className="text-[11px] text-white/40 mt-1">
+            PIN diperlukan untuk verifikasi keamanan bahwa Anda adalah pemilik resmi akun anggota.
+          </p>
         </div>
       </div>
 

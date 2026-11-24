@@ -76,6 +76,7 @@ export interface BuyTicketPayload {
   category_id: string
   member_code: string
   phone: string
+  pin?: string
   notes?: string
 }
 

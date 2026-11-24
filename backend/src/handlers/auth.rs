@@ -1,4 +1,9 @@
-use axum::{extract::State, Json, Extension};
+use axum::{
+    extract::{ConnectInfo, State},
+    http::HeaderMap,
+    Extension, Json,
+};
+use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
@@ -25,8 +30,14 @@ pub struct AdminPublic {
 
 pub async fn login(
     State((pool, _config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    let client_ip = crate::utils::extract_ip(&headers, Some(conn_addr));
+    let rate_key = format!("login:{}:{}", client_ip, body.email.trim().to_lowercase());
+    crate::utils::rate_limiter::login_limiter().check(&rate_key)?;
+
     let admin = sqlx::query_as::<_, Admin>(
         "SELECT * FROM admins WHERE email = $1"
     )
@@ -42,9 +53,12 @@ pub async fn login(
     let parsed_hash = PasswordHash::new(&admin.password_hash)
         .map_err(|_| AppError::Internal(anyhow::anyhow!("Error parsing password hash")))?;
 
-    Argon2::default()
-        .verify_password(body.password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::Unauthorized("Email atau password salah".into()))?;
+    if Argon2::default().verify_password(body.password.as_bytes(), &parsed_hash).is_err() {
+        return Err(AppError::Unauthorized("Email atau password salah".into()));
+    }
+
+    // Reset rate limit jika login sukses
+    crate::utils::rate_limiter::login_limiter().reset(&rate_key);
 
     let token = create_token(admin.id, &admin.email, &admin.name, &admin.role)
         .map_err(|e| AppError::Internal(e))?;

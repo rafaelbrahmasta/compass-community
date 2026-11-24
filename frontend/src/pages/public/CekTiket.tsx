@@ -38,7 +38,7 @@ export default function CekTiket() {
     try {
       const params =
         searchMode === 'code'
-          ? { ticket_code: ticketCode.trim().toUpperCase() }
+          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim() }
           : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim() }
 
       const res = await checkTicket(params)
@@ -151,23 +151,38 @@ export default function CekTiket() {
 
             <form onSubmit={handleSearch} className="space-y-4">
               {searchMode === 'code' ? (
-                <div>
-                  <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
-                    Kode Tiket <span className="text-gold">*</span>
-                  </label>
-                  <div className="relative">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
+                      Kode Tiket <span className="text-gold">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        required
+                        value={ticketCode}
+                        onChange={e => setTicketCode(e.target.value.toUpperCase())}
+                        placeholder="Contoh: TCK-20261120-XXXX"
+                        className="w-full bg-[#060a08] border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono uppercase tracking-wider"
+                      />
+                      <Ticket
+                        size={18}
+                        strokeWidth={1.5}
+                        className="absolute right-4 top-3.5 text-white/40"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
+                      Nomor HP Terdaftar <span className="text-gold">*</span>
+                    </label>
                     <input
-                      type="text"
+                      type="tel"
                       required
-                      value={ticketCode}
-                      onChange={e => setTicketCode(e.target.value.toUpperCase())}
-                      placeholder="Contoh: TCK-20261120-XXXX"
-                      className="w-full bg-[#060a08] border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono uppercase tracking-wider"
-                    />
-                    <Ticket
-                      size={18}
-                      strokeWidth={1.5}
-                      className="absolute right-4 top-3.5 text-white/40"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="Contoh: 08123456789"
+                      className="w-full bg-[#060a08] border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono"
                     />
                   </div>
                 </div>
