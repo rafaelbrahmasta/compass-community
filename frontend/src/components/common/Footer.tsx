@@ -224,6 +224,10 @@ export default function Footer() {
             <span>Kebanggaan PSS Sleman</span>
             <span>•</span>
             <span>Est. 2024</span>
+            <span>•</span>
+            <Link to="/admin/login" className="text-white/40 hover:text-gold transition-colors">
+              Portal Admin
+            </Link>
           </div>
         </div>
       </div>
