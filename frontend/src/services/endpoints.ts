@@ -110,8 +110,8 @@ export const getDashboardStats = () =>
 // Admin Carousel
 export const adminGetCarousel = () =>
   api.get<ApiResponse<CarouselSlide[]>>('/admin/carousel')
-export const adminCreateSlide = (data: FormData) =>
-  api.post<ApiResponse<CarouselSlide>>('/admin/carousel', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+export const adminCreateSlide = (data: { title: string; subtitle: string; sort_order?: number; is_active?: boolean }) =>
+  api.post<ApiResponse<CarouselSlide>>('/admin/carousel', data)
 export const adminUpdateSlide = (id: string, data: Partial<CarouselSlide>) =>
   api.put<ApiResponse<CarouselSlide>>(`/admin/carousel/${id}`, data)
 export const adminUploadSlideImage = (id: string, file: File) => {

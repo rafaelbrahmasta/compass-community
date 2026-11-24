@@ -6,6 +6,8 @@ use tower_http::{
     trace::TraceLayer,
     services::ServeDir,
 };
+use axum::extract::DefaultBodyLimit;
+use axum::middleware::from_fn;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
@@ -59,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));
     let listener = TcpListener::bind(addr).await?;
     tracing::info!("Server berjalan di http://{}", addr);
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await?;
 
     Ok(())
 }
@@ -82,9 +84,18 @@ async fn build_app(
         .allow_headers(Any);
 
     let app = Router::new()
-        .nest("/api/v1", routes::build_routes(pool, config))
+        .nest("/api/v1", routes::build_routes(pool.clone(), config))
         .nest_service("/uploads", ServeDir::new(&upload_dir))
+        // Layer menyimpan PgPool ke request.extensions agar bisa diakses di middleware auth
+        .layer(from_fn(move |mut req: axum::extract::Request, next: axum::middleware::Next| {
+            let pool = pool.clone();
+            async move {
+                req.extensions_mut().insert(pool);
+                next.run(req).await
+            }
+        }))
         .layer(TraceLayer::new_for_http())
+        .layer(DefaultBodyLimit::max(12 * 1024 * 1024)) // 12 MB body limit untuk upload gambar
         .layer(cors);
 
     Ok(app)

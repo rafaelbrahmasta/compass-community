@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Query, State},
+    extract::{ConnectInfo, Query, State},
     Json,
     http::HeaderMap,
 };
+use std::net::SocketAddr;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -60,11 +61,12 @@ pub struct BankInfo {
 
 pub async fn buy_ticket(
     State((pool, _config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(body): Json<BuyTicketRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     // Rate limit per IP
-    limiter().check(&extract_ip(&headers))?;
+    limiter().check(&extract_ip(&headers, Some(conn_addr)))?;
 
     let clean_code = body.member_code.trim().to_uppercase();
     let clean_phone = body.phone.trim().replace(" ", "").replace("-", "");
@@ -93,7 +95,19 @@ pub async fn buy_ticket(
         ));
     }
 
-    // 2. Cek apakah anggota sudah punya tiket untuk pertandingan ini (1 tiket per anggota per pertandingan)
+    // 2. Cek apakah ada pesanan tiket kedaluwarsa milik anggota ini, batalkan otomatis bila ada
+    sqlx::query(
+        r#"UPDATE ticket_purchases
+           SET status = 'dibatalkan',
+               notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena batas waktu pembayaran 24 jam berakhir'
+           WHERE member_id = $1 AND match_id = $2 AND status = 'menunggu_pembayaran' AND expires_at <= NOW()"#
+    )
+    .bind(member.id)
+    .bind(body.match_id)
+    .execute(&pool)
+    .await?;
+
+    // Cek apakah anggota sudah punya tiket aktif untuk pertandingan ini (1 tiket per anggota per pertandingan)
     let existing_ticket = sqlx::query_as::<_, TicketPurchase>(
         r#"SELECT * FROM ticket_purchases
            WHERE member_id = $1 AND match_id = $2 AND status != 'dibatalkan'"#
@@ -283,11 +297,12 @@ pub struct TicketDetailItem {
 
 pub async fn check_ticket(
     State((pool, _config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Query(params): Query<CheckTicketQuery>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     // Rate limit per IP
-    limiter().check(&extract_ip(&headers))?;
+    limiter().check(&extract_ip(&headers, Some(conn_addr)))?;
 
     let ticket_code = params.ticket_code.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
     let member_code = params.member_code.as_deref().map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty());

@@ -156,14 +156,13 @@ pub struct MerchCategory {
 #[derive(Debug, Serialize, Deserialize, sqlx::FromRow, Clone)]
 pub struct MerchProduct {
     pub id: Uuid,
-    pub category_id: Option<Uuid>,
+    pub category_id: Uuid,
     pub name: String,
-    pub description: Option<String>,
+    pub description: String,
     pub price: rust_decimal::Decimal,
-    pub sizes: Option<String>,
+    pub sizes: serde_json::Value,
     pub stock_status: String,
     pub order_form_url: Option<String>,
-    pub is_active: bool,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }
@@ -175,7 +174,6 @@ pub struct MerchImage {
     pub image_url: String,
     pub is_primary: bool,
     pub sort_order: i32,
-    pub created_at: DateTime<Utc>,
 }
 
 // ===== GALLERY =====
@@ -236,7 +234,6 @@ pub struct ContactMessage {
     pub id: Uuid,
     pub name: String,
     pub email: String,
-    pub subject: String,
     pub message: String,
     pub is_read: bool,
     pub created_at: DateTime<Utc>,

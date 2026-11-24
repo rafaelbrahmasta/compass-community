@@ -70,12 +70,12 @@ export default function AdminCarousel() {
         toast.success('Slide carousel berhasil diperbarui!')
       } else {
         // Create slide
-        const form = new FormData()
-        form.append('title', title)
-        form.append('subtitle', subtitle)
-        form.append('sort_order', String(sortOrder))
-        form.append('is_active', String(isActive))
-        const res = await adminCreateSlide(form)
+        const res = await adminCreateSlide({
+          title,
+          subtitle,
+          sort_order: sortOrder,
+          is_active: isActive,
+        })
         const newSlide = res.data.data
         if (imageFile) {
           await adminUploadSlideImage(newSlide.id, imageFile)

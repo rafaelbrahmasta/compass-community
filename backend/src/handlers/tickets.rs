@@ -39,7 +39,7 @@ pub async fn create_ticket(
     Json(body): Json<TicketRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
     let ticket = sqlx::query_as::<_, TicketCategory>(
-        "INSERT INTO ticket_categories (id, match_id, name, price, quota, sold)
+        "INSERT INTO ticket_categories (id, match_id, name, price, quota, sold, is_active)
          VALUES ($1, $2, $3, $4, $5, 0, true) RETURNING *"
     )
     .bind(Uuid::new_v4()).bind(match_id).bind(&body.name).bind(body.price).bind(body.quota)

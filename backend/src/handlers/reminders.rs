@@ -31,11 +31,13 @@ pub async fn create_reminder(
         .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
 
     // Calculate scheduled_at
-    let match_datetime = m.match_date.and_time(m.match_time).and_utc();
+    // Jadwal pertandingan disimpan dalam waktu lokal WIB (UTC+7).
+    // Konversi WIB ke UTC dengan mengurangi 7 jam:
+    let match_datetime_utc = m.match_date.and_time(m.match_time).and_utc() - Duration::hours(7);
     let scheduled_at = if body.remind_before == "h_minus_1_day" {
-        match_datetime - Duration::days(1)
+        match_datetime_utc - Duration::days(1)
     } else {
-        match_datetime - Duration::hours(3)
+        match_datetime_utc - Duration::hours(3)
     };
 
     // Check duplicate

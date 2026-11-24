@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::OnceLock;
 use std::time::{Instant, Duration as StdDuration};
 use axum::{
+    extract::ConnectInfo,
     http::HeaderMap,
     middleware::Next,
     response::Response,
@@ -46,12 +48,17 @@ pub fn limiter() -> &'static TicketRateLimiter {
     TICKET_RATE_LIMITER.get_or_init(|| TicketRateLimiter::new(10, 60)) // 10 req per menit
 }
 
-pub fn extract_ip(headers: &HeaderMap) -> String {
+/// Ekstrak IP klien dari header (x-real-ip / x-forwarded-for) dengan fallback ke SocketAddr.
+/// Jika keduanya tidak tersedia, gunakan "unknown".
+pub fn extract_ip(headers: &HeaderMap, conn_addr: Option<SocketAddr>) -> String {
     if let Some(real_ip) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
         return real_ip.to_string();
     }
     if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         return forwarded.split(',').next().unwrap_or("unknown").trim().to_string();
+    }
+    if let Some(addr) = conn_addr {
+        return addr.ip().to_string();
     }
     "unknown".to_string()
 }
@@ -59,10 +66,11 @@ pub fn extract_ip(headers: &HeaderMap) -> String {
 /// Middleware: rate limit untuk endpoint tiket (buy/check).
 #[allow(dead_code)]
 pub async fn ticket_rate_limit_middleware(
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
     request: axum::extract::Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    let ip = extract_ip(request.headers());
+    let ip = extract_ip(request.headers(), Some(conn_addr));
     limiter().check(&ip)?;
     Ok(next.run(request).await)
 }

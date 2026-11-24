@@ -14,7 +14,8 @@ pub struct Claims {
 }
 
 pub fn create_token(admin_id: Uuid, email: &str, name: &str, role: &str) -> anyhow::Result<String> {
-    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into());
+    let secret = std::env::var("JWT_SECRET")
+        .expect("JWT_SECRET environment variable must be set");
     let now = Utc::now();
     let exp = now + chrono::Duration::hours(24);
 
@@ -37,7 +38,8 @@ pub fn create_token(admin_id: Uuid, email: &str, name: &str, role: &str) -> anyh
 }
 
 pub fn verify_token(token: &str) -> anyhow::Result<Claims> {
-    let secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| "secret".into());
+    let secret = std::env::var("JWT_SECRET")
+        .expect("JWT_SECRET environment variable must be set");
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),

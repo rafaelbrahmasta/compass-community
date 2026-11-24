@@ -122,13 +122,31 @@ pub async fn admin_update_admin(
     let current_user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| AppError::Unauthorized("Token tidak valid".into()))?;
 
-    // Validasi akun sendiri
+    // Cek izin: super_admin hanya boleh diakses oleh super_admin
+    // Admin_1 dan admin_2 hanya boleh mengelola akun mereka sendiri
+    let is_super_admin = claims.role == "super_admin";
+
     if current_user_id == id {
+        // User merubah akun sendiri
         if !body.is_active {
             return Err(AppError::BadRequest("Anda tidak dapat menonaktifkan akun Anda sendiri".into()));
         }
-        if body.role != "super_admin" {
+        // Super_admin tidak bisa menurunkan role sendiri ke bawah
+        if body.role != "super_admin" && is_super_admin {
             return Err(AppError::BadRequest("Anda tidak dapat menurunkan role super_admin akun Anda sendiri".into()));
+        }
+        // Admin_1/admin_2 bisa ubah role akun sendiri (hanya ke admin_1 atau admin_2)
+        if !is_super_admin && (body.role != "admin_1" && body.role != "admin_2") {
+            return Err(AppError::BadRequest("Role hanya boleh 'admin_1' atau 'admin_2'".into()));
+        }
+    } else {
+        // User merubah akun LAIN (bukan akun sendiri)
+        if !is_super_admin {
+            return Err(AppError::Forbidden("Hanya super_admin yang boleh mengubah akun admin lain".into()));
+        }
+        // Super_admin tidak boleh menurunkan role orang lain ke admin_1/admin_2
+        if body.role != "super_admin" {
+            return Err(AppError::BadRequest("Super_admin hanya boleh menetapkan role 'super_admin'".into()));
         }
     }
 
