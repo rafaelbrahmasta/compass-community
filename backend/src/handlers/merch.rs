@@ -28,12 +28,28 @@ pub async fn get_products(
         "SELECT * FROM merch_products WHERE ($1::uuid IS NULL OR category_id = $1) ORDER BY sort_order ASC"
     ).bind(filter.category_id).fetch_all(&pool).await?;
 
-    // Load images for each product
-    let mut result = vec![];
+    if products.is_empty() {
+        return Ok(ok("Produk merchandise", Vec::<serde_json::Value>::new()));
+    }
+
+    // Ambil gambar untuk seluruh produk sekaligus dalam 1 query (mencegah N+1 query)
+    let product_ids: Vec<Uuid> = products.iter().map(|p| p.id).collect();
+    let all_images = sqlx::query_as::<_, MerchImage>(
+        "SELECT * FROM merch_images WHERE product_id = ANY($1) ORDER BY sort_order ASC"
+    )
+    .bind(&product_ids)
+    .fetch_all(&pool)
+    .await?;
+
+    use std::collections::HashMap;
+    let mut image_map: HashMap<Uuid, Vec<MerchImage>> = HashMap::new();
+    for img in all_images {
+        image_map.entry(img.product_id).or_default().push(img);
+    }
+
+    let mut result = Vec::with_capacity(products.len());
     for p in products {
-        let images = sqlx::query_as::<_, MerchImage>(
-            "SELECT * FROM merch_images WHERE product_id = $1 ORDER BY sort_order ASC"
-        ).bind(p.id).fetch_all(&pool).await?;
+        let images = image_map.remove(&p.id).unwrap_or_default();
         result.push(serde_json::json!({
             "id": p.id,
             "category_id": p.category_id,

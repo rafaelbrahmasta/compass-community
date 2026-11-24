@@ -152,12 +152,18 @@ export default function AdminAnggota() {
   }
 
   const handleExportCsv = () => {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8080/api/v1'
+    const apiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1'
     const token = localStorage.getItem('compass_token')
     fetch(`${apiUrl}/admin/members/export-csv`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.blob())
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null)
+          throw new Error(errData?.message || `Gagal ekspor CSV (HTTP ${res.status})`)
+        }
+        return res.blob()
+      })
       .then(blob => {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -168,7 +174,7 @@ export default function AdminAnggota() {
         a.remove()
         toast.success('File CSV anggota berhasil diunduh!')
       })
-      .catch(() => toast.error('Gagal mengekspor CSV'))
+      .catch((err: Error) => toast.error(err.message || 'Gagal mengekspor CSV'))
   }
 
   const handleImportCsv = async (e: React.FormEvent) => {

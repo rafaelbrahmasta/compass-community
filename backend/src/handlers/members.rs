@@ -290,6 +290,15 @@ pub async fn admin_import_csv(
     })))
 }
 
+fn sanitize_csv_field(val: &str) -> String {
+    let trimmed = val.trim();
+    if trimmed.starts_with('=') || trimmed.starts_with('+') || trimmed.starts_with('-') || trimmed.starts_with('@') {
+        format!("'{}", trimmed)
+    } else {
+        trimmed.to_string()
+    }
+}
+
 pub async fn admin_export_csv(
     State((pool, _config)): State<(PgPool, Config)>,
 ) -> Result<Response, AppError> {
@@ -318,10 +327,10 @@ pub async fn admin_export_csv(
 
     for m in members {
         wtr.write_record(&[
-            m.member_code,
-            m.full_name,
-            m.phone,
-            m.email.unwrap_or_default(),
+            sanitize_csv_field(&m.member_code),
+            sanitize_csv_field(&m.full_name),
+            sanitize_csv_field(&m.phone),
+            sanitize_csv_field(&m.email.unwrap_or_default()),
             if m.is_active { "Aktif".to_string() } else { "Nonaktif".to_string() },
             m.ticket_count.to_string(),
             m.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),

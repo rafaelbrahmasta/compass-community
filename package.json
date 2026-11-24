@@ -1,1 +1,26 @@
-{}
+{
+  "name": "compass-community",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Website & Sistem Manajemen Tiket Komunitas Suporter COMPASS PSS Sleman",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "dev:backend": "cd backend && cargo run",
+    "build:backend": "cd backend && cargo build --release",
+    "test:backend": "cd backend && cargo test",
+    "build": "cd frontend && npm run build && cd ../backend && cargo build --release"
+  },
+  "keywords": [
+    "compass",
+    "pss-sleman",
+    "super-app",
+    "rust",
+    "axum",
+    "react",
+    "vite",
+    "tailwind"
+  ],
+  "author": "COMPASS Tech Team",
+  "license": "UNLICENSED"
+}

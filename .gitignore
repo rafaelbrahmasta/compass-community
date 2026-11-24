@@ -5,20 +5,25 @@ backend/uploads/gallery/*
 backend/uploads/news/*
 backend/uploads/merch/*
 backend/uploads/qr/*
+backend/uploads/proof/*
+backend/proofs/*
 !backend/uploads/gallery/.gitkeep
 !backend/uploads/news/.gitkeep
 !backend/uploads/merch/.gitkeep
 !backend/uploads/qr/.gitkeep
+!backend/uploads/proof/.gitkeep
 
 # Local Postgres Cluster
 pgdata/
 pw.tmp
+backups/
 
 # ========== Node / Frontend ==========
 frontend/node_modules/
 frontend/dist/
 frontend/.env
 frontend/.env.local
+*.tsbuildinfo
 
 # ========== IDE / OS ==========
 .vscode/

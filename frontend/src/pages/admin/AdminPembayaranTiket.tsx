@@ -139,7 +139,13 @@ export default function AdminPembayaranTiket() {
     fetch(`${apiUrl}/admin/tickets/export-csv?${query.toString()}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => res.blob())
+      .then(async res => {
+        if (!res.ok) {
+          const errData = await res.json().catch(() => null)
+          throw new Error(errData?.message || `Gagal ekspor CSV (HTTP ${res.status})`)
+        }
+        return res.blob()
+      })
       .then(blob => {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -150,7 +156,7 @@ export default function AdminPembayaranTiket() {
         a.remove()
         toast.success('Data pesanan tiket CSV berhasil diunduh!')
       })
-      .catch(() => toast.error('Gagal mengekspor CSV tiket'))
+      .catch((err: Error) => toast.error(err.message || 'Gagal mengekspor CSV tiket'))
   }
 
   const getStatusBadge = (status: string) => {
