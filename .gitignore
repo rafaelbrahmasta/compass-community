@@ -1,17 +1,20 @@
 # ========== Rust / Backend ==========
 backend/target/
 backend/.env
+backend/.env.local
+backend/.env.*.local
 backend/uploads/gallery/*
 backend/uploads/news/*
 backend/uploads/merch/*
 backend/uploads/qr/*
 backend/uploads/proof/*
+backend/uploads/about/*
+backend/uploads_private/*
 backend/proofs/*
 !backend/uploads/gallery/.gitkeep
 !backend/uploads/news/.gitkeep
 !backend/uploads/merch/.gitkeep
 !backend/uploads/qr/.gitkeep
-!backend/uploads/proof/.gitkeep
 
 # Local Postgres Cluster
 pgdata/
