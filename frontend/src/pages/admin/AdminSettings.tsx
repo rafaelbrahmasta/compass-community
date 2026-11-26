@@ -126,7 +126,7 @@ export default function AdminSettings() {
                 </div>
               ) : (
                 <div className="mb-2 text-xs text-white/40 italic">
-                  Belum ada logo khusus (saat ini menggunakan ikon bawaan "CP").
+                  Belum ada logo khusus (saat ini menggunakan ikon bawaan &quot;CP&quot;).
                 </div>
               )}
               <label className="block text-white/70 text-xs font-semibold uppercase mb-1">Upload File Logo Baru (PNG / JPG)</label>

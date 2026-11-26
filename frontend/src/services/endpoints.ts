@@ -86,8 +86,17 @@ export const sendContactMessage = (data: ContactMessageRequest) =>
 export const buyTicket = (data: import('../types').BuyTicketPayload) =>
   api.post<ApiResponse<import('../types').BuyTicketResult>>('/tickets/buy', data)
 
-export const checkTicket = (params: { ticket_code?: string; member_code?: string; phone?: string }) =>
-  api.get<ApiResponse<any>>('/tickets/check', { params })
+export const checkTicket = (params: { ticket_code?: string; member_code?: string; phone?: string; pin?: string }) =>
+  api.get<ApiResponse<{
+    tickets: import('../types').TicketPurchase[]
+    bank_info: {
+      bank_name: string
+      account_name: string
+      account_number: string
+      qr_image_url?: string
+      instructions?: string
+    }
+  }>>('/tickets/check', { params })
 
 export const uploadTicketPaymentProof = (formData: FormData) =>
   api.post<ApiResponse<{ ticket_code: string; payment_proof_url: string }>>('/tickets/upload-proof', formData, {
@@ -293,7 +302,7 @@ export const adminGetMemberById = (id: string) =>
   api.get<ApiResponse<import('../types').Member>>(`/admin/members/${id}`)
 
 export const adminCreateMember = (data: { full_name: string; phone: string; email?: string; is_active?: boolean }) =>
-  api.post<ApiResponse<import('../types').Member>>('/admin/members', data)
+  api.post<ApiResponse<{ member: import('../types').Member; initial_pin: string; pin_note: string }>>('/admin/members', data)
 
 export const adminUpdateMember = (id: string, data: { full_name: string; phone: string; email?: string; is_active: boolean }) =>
   api.put<ApiResponse<import('../types').Member>>(`/admin/members/${id}`, data)
@@ -301,12 +310,28 @@ export const adminUpdateMember = (id: string, data: { full_name: string; phone: 
 export const adminDeleteMember = (id: string) =>
   api.delete<ApiResponse<null>>(`/admin/members/${id}`)
 
+export const adminResetMemberPin = (id: string) =>
+  api.put<ApiResponse<{ member_id: string; member_code: string; full_name: string; new_pin: string; pin_note: string }>>(`/admin/members/${id}/reset-pin`, {})
+
 export const adminImportMembersCsv = (csv_content: string) =>
-  api.post<ApiResponse<{ success_count: number; error_count: number; errors: string[] }>>('/admin/members/import-csv', { csv_content })
+  api.post<ApiResponse<{
+    success_count: number
+    error_count: number
+    errors: string[]
+    imported?: Array<{ member_code: string; full_name: string; phone: string; initial_pin: string }>
+    pin_note?: string
+  }>>('/admin/members/import-csv', { csv_content })
 
 // Admin Tickets (Purchases & Check-in)
 export const adminGetTicketPurchases = (params?: { match_id?: string; status?: string; q?: string; page?: number; per_page?: number }) =>
   api.get<ApiResponse<PaginatedData<import('../types').TicketPurchase>>>('/admin/tickets', { params })
+
+export const adminGetTicketProofBlob = async (id: string): Promise<Blob> => {
+  const response = await api.get(`/admin/tickets/${id}/proof`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
 
 export const adminUpdateTicketStatus = (id: string, data: { status: string; notes?: string }) =>
   api.put<ApiResponse<import('../types').TicketPurchase>>(`/admin/tickets/${id}/status`, data)

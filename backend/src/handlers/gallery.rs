@@ -80,7 +80,7 @@ pub async fn upload_photos(
             let caption = current_caption.clone();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(format!("Gagal membaca data file: {}", e)))?;
             if data.is_empty() { continue; }
-            let url = crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?;
+            let url = crate::utils::save_upload(&config, "gallery", &ct, &data).await?;
             sort_base += 1;
             let photo = sqlx::query_as::<_, GalleryPhoto>(
                 "INSERT INTO gallery_photos (id, album_id, image_url, caption, sort_order) VALUES ($1,$2,$3,$4,$5) RETURNING *"
@@ -97,3 +97,4 @@ pub async fn delete_photo(State((pool, _config)): State<(PgPool, Config)>, Path(
     sqlx::query("DELETE FROM gallery_photos WHERE id = $1").bind(id).execute(&pool).await?;
     Ok(ok::<()>("Foto dihapus", ()))
 }
+

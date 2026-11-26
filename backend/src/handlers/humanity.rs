@@ -76,7 +76,7 @@ pub async fn upload_qr(
         if field.name() == Some("image") {
             let ct = field.content_type().unwrap_or("image/png").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = crate::utils::save_upload(&config.upload_dir, "qr", &ct, &data).await?;
+            let url = crate::utils::save_upload(&config, "qr", &ct, &data).await?;
 
             sqlx::query("UPDATE humanity_settings SET qr_image_url = $1, updated_at = NOW()")
                 .bind(&url)
@@ -87,3 +87,4 @@ pub async fn upload_qr(
     }
     Err(AppError::BadRequest("Field 'image' tidak ditemukan".into()))
 }
+

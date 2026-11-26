@@ -42,7 +42,8 @@ services:
       PORT: "8080"
       SEED_DEMO: ${SEED_DEMO:-false}
     ports:
-      - "8080:8080"
+      # Hanya bind ke localhost host untuk keamanan agar tidak bisa di-bypass langsung dari internet
+      - "127.0.0.1:8080:8080"
     volumes:
       - ./backend/uploads:/app/uploads
 

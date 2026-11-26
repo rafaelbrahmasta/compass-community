@@ -109,6 +109,7 @@ pub struct Member {
     pub phone: String,
     pub email: Option<String>,
     pub is_active: bool,
+    #[serde(skip_serializing)]
     pub pin_hash: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

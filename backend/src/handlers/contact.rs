@@ -1,10 +1,12 @@
-use axum::{extract::{State, Path}, Json};
+use axum::{extract::{ConnectInfo, State, Path}, Json, http::HeaderMap};
+use std::net::SocketAddr;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::ContactMessage;
+use crate::utils::{limiter, extract_ip};
 
 #[derive(Deserialize)]
 pub struct ContactRequest {
@@ -15,8 +17,13 @@ pub struct ContactRequest {
 
 pub async fn send_message(
     State((pool, _config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<ContactRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    // Bug 10: rate limit
+    limiter().check(&extract_ip(&headers, Some(conn_addr)))?;
+
     if body.name.is_empty() || body.email.is_empty() || body.message.is_empty() {
         return Err(AppError::BadRequest("Semua field wajib diisi".into()));
     }

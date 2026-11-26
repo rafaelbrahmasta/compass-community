@@ -10,18 +10,10 @@ use axum::extract::DefaultBodyLimit;
 use axum::middleware::from_fn;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-mod config;
-mod db;
-mod errors;
-mod middleware;
-mod models;
-mod routes;
-mod handlers;
-mod services;
-mod utils;
-mod scheduler;
-
-pub use config::Config;
+use compass_backend::{
+    config::Config,
+    db, routes, scheduler, services,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -70,11 +62,13 @@ async fn build_app(
     pool: sqlx::PgPool,
     config: Config,
 ) -> anyhow::Result<Router> {
-    let frontend_url = config.frontend_url.clone();
+    let clean_frontend_url = config.frontend_url.trim().trim_end_matches('/');
+    let frontend_origin = clean_frontend_url.parse::<axum::http::HeaderValue>()
+        .unwrap_or_else(|_| axum::http::HeaderValue::from_static("http://localhost:5173"));
     let upload_dir = config.upload_dir.clone();
 
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(frontend_origin)
         .allow_methods(Any)
         .allow_headers(Any);
 
@@ -92,7 +86,7 @@ async fn build_app(
         // Layer Security Headers (CSP, X-Frame-Options, X-Content-Type-Options)
         .layer(from_fn(security_headers_middleware))
         .layer(TraceLayer::new_for_http())
-        .layer(DefaultBodyLimit::max(50 * 1024 * 1024)) // 50 MB body limit untuk upload galeri multi-foto dan media
+        .layer(DefaultBodyLimit::max(1024 * 1024)) // 1 MB default body limit untuk endpoint publik
         .layer(cors);
 
     Ok(app)

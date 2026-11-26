@@ -47,6 +47,7 @@ async fn cancel_expired_tickets(pool: &PgPool) -> anyhow::Result<()> {
                SET status = 'dibatalkan',
                    notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena batas waktu pembayaran 24 jam berakhir'
                WHERE status = 'menunggu_pembayaran' AND expires_at <= NOW()
+                 AND payment_proof_url IS NULL
                RETURNING category_id
            ),
            grouped AS (

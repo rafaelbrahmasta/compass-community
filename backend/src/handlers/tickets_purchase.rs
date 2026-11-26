@@ -9,11 +9,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::{DateTime, Duration, Utc};
 use rand::Rng;
-use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{Member, TicketBankSettings, TicketCategory, TicketPurchase};
-use crate::utils::{limiter, extract_ip, save_upload};
+use crate::utils::{limiter, extract_ip, verify_pin, mask_name, mask_phone};
+use crate::utils::upload::{save_private_upload, delete_file};
 use crate::utils::email::send_email_async;
 
 #[derive(Deserialize)]
@@ -102,43 +102,36 @@ pub async fn buy_ticket(
         ));
     }
 
-    // Validasi PIN Anggota untuk mencegah orang lain menghabiskan jatah tiket
-    let pin_valid = match (&member.pin_hash, &body.pin) {
-        (Some(hash), Some(input_pin)) => {
-            if let Ok(parsed_hash) = PasswordHash::new(hash) {
-                Argon2::default().verify_password(input_pin.as_bytes(), &parsed_hash).is_ok()
-            } else {
-                hash == input_pin
-            }
+    // Validasi PIN Anggota - wajib diisi dan hanya valid jika pin_hash sudah diatur
+    let input_pin = body.pin.as_deref().unwrap_or("").trim().to_string();
+    if input_pin.is_empty() {
+        return Err(AppError::BadRequest("PIN anggota wajib diisi".into()));
+    }
+
+    let pin_valid = match &member.pin_hash {
+        Some(hash) => verify_pin(&input_pin, hash),
+        None => {
+            return Err(AppError::BadRequest(
+                "PIN belum diatur, hubungi admin Compass untuk mengatur PIN Anda.".into()
+            ));
         }
-        (None, Some(input_pin)) => {
-            // Fallback: 6 digit terakhir nomor HP atau 123456 jika belum set PIN
-            let phone_suffix = if clean_phone.len() >= 6 {
-                &clean_phone[clean_phone.len() - 6..]
-            } else {
-                "123456"
-            };
-            input_pin == phone_suffix || input_pin == "123456"
-        }
-        _ => false,
     };
 
     if !pin_valid {
-        return Err(AppError::BadRequest(
-            "PIN anggota tidak valid atau belum diisi. Gunakan 6 digit terakhir nomor HP Anda atau hubungi admin bila lupa PIN.".into()
-        ));
+        return Err(AppError::BadRequest("PIN anggota tidak valid".into()));
     }
 
     // 2. Mulai transaksi dengan locking
     let mut tx = pool.begin().await?;
 
-    // Auto-cancel tiket yang sudah kedaluwarsa untuk member dan laga ini
-    let _ = sqlx::query(
+    // Bug 3+9 fix: auto-cancel hanya tiket tanpa bukti bayar, dan propagate error
+    sqlx::query(
         r#"WITH expired AS (
                UPDATE ticket_purchases
                SET status = 'dibatalkan',
                    notes = COALESCE(notes || ' | ', '') || 'Dibatalkan otomatis karena kedaluwarsa saat order baru'
-               WHERE member_id = $1 AND match_id = $2 AND status = 'menunggu_pembayaran' AND expires_at <= NOW()
+               WHERE member_id = $1 AND match_id = $2 AND status = 'menunggu_pembayaran'
+                 AND expires_at <= NOW() AND payment_proof_url IS NULL
                RETURNING category_id
            )
            UPDATE ticket_categories tc
@@ -149,7 +142,7 @@ pub async fn buy_ticket(
     .bind(member.id)
     .bind(body.match_id)
     .execute(&mut *tx)
-    .await;
+    .await?;
 
     // Periksa apakah anggota sudah punya tiket yang aktif (menunggu_pembayaran / lunas / sudah_checkin)
     let existing_active = sqlx::query_as::<_, TicketPurchase>(
@@ -221,22 +214,61 @@ pub async fn buy_ticket(
         ));
     }
 
-    // Generate unique ticket_code: TCK-YYYYMMDD-XXXX
+    // Bug 7: kode unik anti-kembar (retry 10x)
+    let mut unique_code: i32 = 0;
+    let mut total_price = category.price;
+    for attempt in 0..10i32 {
+        let candidate: i32 = rand::thread_rng().gen_range(100..=999);
+        let candidate_total = category.price + rust_decimal::Decimal::from(candidate);
+        // Cek apakah total_price+unique_code sudah dipakai tiket menunggu_pembayaran yang belum expired
+        let exists: bool = sqlx::query_scalar(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM ticket_purchases
+                WHERE total_price = $1 AND status = 'menunggu_pembayaran'
+                  AND expires_at > NOW() AND payment_proof_url IS NULL
+            )"#
+        )
+        .bind(candidate_total)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            unique_code = candidate;
+            total_price = candidate_total;
+            break;
+        }
+        if attempt == 9 {
+            return Err(AppError::BadRequest("Server sibuk, coba lagi dalam beberapa saat".into()));
+        }
+    }
+
+    // Bug 8: ticket_code 6 karakter alfanumerik, retry 5x jika konflik
     let today_str = Utc::now().format("%Y%m%d").to_string();
-    let rand_str: String = rand::thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(4)
-        .map(char::from)
-        .collect::<String>()
-        .to_uppercase();
-    let ticket_code = format!("TCK-{}-{}", today_str, rand_str);
+    let mut ticket_code = String::new();
+    for attempt in 0..5i32 {
+        let rand_str: String = rand::thread_rng()
+            .sample_iter(&rand::distributions::Alphanumeric)
+            .take(6)
+            .map(char::from)
+            .collect::<String>()
+            .to_uppercase();
+        let candidate_code = format!("TCK-{}-{}", today_str, rand_str);
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM ticket_purchases WHERE ticket_code = $1)"
+        )
+        .bind(&candidate_code)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !exists {
+            ticket_code = candidate_code;
+            break;
+        }
+        if attempt == 4 {
+            return Err(AppError::Internal(anyhow::anyhow!("Gagal generate kode tiket unik, coba lagi")));
+        }
+    }
 
     // QR Payload yang unik dan terenkode
     let qr_payload = format!("COMPASS|{}|{}|{}", ticket_code, member.member_code, match_data.id);
-
-    // Generate 3 digit kode unik (100 - 999) untuk nominal transfer
-    let unique_code = rand::thread_rng().gen_range(100..=999);
-    let total_price = category.price + rust_decimal::Decimal::from(unique_code);
 
     // Update quota sold + 1
     sqlx::query(
@@ -350,6 +382,7 @@ pub struct CheckTicketQuery {
     pub member_code: Option<String>,
     pub phone: Option<String>,
     pub ticket_code: Option<String>,
+    pub pin: Option<String>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -395,6 +428,7 @@ pub async fn check_ticket(
     let ticket_code = params.ticket_code.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
     let member_code = params.member_code.as_deref().map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty());
     let phone = params.phone.as_deref().map(|s| s.trim().replace(" ", "").replace("-", "")).filter(|s| !s.is_empty());
+    let input_pin = params.pin.as_deref().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
 
     if phone.is_none() {
         return Err(AppError::BadRequest(
@@ -402,10 +436,40 @@ pub async fn check_ticket(
         ));
     }
 
+    // Bug 11: wajib PIN
+    if input_pin.is_none() {
+        return Err(AppError::BadRequest("PIN anggota wajib diisi untuk melihat tiket".into()));
+    }
+
     if ticket_code.is_none() && member_code.is_none() {
         return Err(AppError::BadRequest(
             "Masukkan Kode Tiket (TCK-...) atau Kode Anggota".into()
         ));
+    }
+
+    // Ambil data member dulu untuk verifikasi PIN
+    let member = sqlx::query_as::<_, Member>(
+        r#"SELECT * FROM members
+           WHERE REPLACE(REPLACE(phone, '-', ''), ' ', '') = $1
+           LIMIT 1"#
+    )
+    .bind(&phone)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Nomor HP tidak terdaftar".into()))?;
+
+    // Verifikasi PIN
+    match &member.pin_hash {
+        Some(hash) => {
+            if !verify_pin(input_pin.as_deref().unwrap_or(""), hash) {
+                return Err(AppError::BadRequest("PIN anggota tidak valid".into()));
+            }
+        }
+        None => {
+            return Err(AppError::BadRequest(
+                "PIN belum diatur, hubungi admin Compass.".into()
+            ));
+        }
     }
 
     let tickets = sqlx::query_as::<_, TicketDetailItem>(
@@ -473,14 +537,20 @@ pub async fn check_ticket(
     })))
 }
 
-// Handler upload bukti transfer tiket
+// Bug 4: upload bukti transfer yang aman
 pub async fn upload_payment_proof(
     State((pool, config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    // Rate limit per IP
+    limiter().check(&extract_ip(&headers, Some(conn_addr)))?;
+
+    // Baca seluruh multipart ke memori DULU sebelum menyentuh disk
     let mut ticket_code: Option<String> = None;
     let mut phone: Option<String> = None;
-    let mut uploaded_url: Option<String> = None;
+    let mut file_bytes: Option<(String, axum::body::Bytes)> = None; // (content_type, bytes)
 
     while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(e.to_string()))? {
         let name = field.name().unwrap_or("").to_string();
@@ -493,16 +563,15 @@ pub async fn upload_payment_proof(
         } else if name == "file" {
             let content_type = field.content_type().unwrap_or("image/jpeg").to_string();
             let bytes = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = save_upload(&config.upload_dir, "proof", &content_type, &bytes).await?;
-            uploaded_url = Some(url);
+            file_bytes = Some((content_type, bytes));
         }
     }
 
     let code = ticket_code.ok_or_else(|| AppError::BadRequest("Kode tiket wajib diisi".into()))?;
     let ph = phone.ok_or_else(|| AppError::BadRequest("Nomor HP wajib diisi".into()))?;
-    let url = uploaded_url.ok_or_else(|| AppError::BadRequest("File bukti transfer wajib diunggah".into()))?;
+    let (content_type, bytes) = file_bytes.ok_or_else(|| AppError::BadRequest("File bukti transfer wajib diunggah".into()))?;
 
-    // Validasi kepemilikan tiket
+    // Validasi kepemilikan tiket SEBELUM menulis file ke disk
     let ticket = sqlx::query_as::<_, TicketPurchase>(
         r#"SELECT tp.* FROM ticket_purchases tp
            JOIN members m ON m.id = tp.member_id
@@ -514,9 +583,24 @@ pub async fn upload_payment_proof(
     .await?
     .ok_or_else(|| AppError::NotFound("Tiket tidak ditemukan atau nomor HP tidak cocok".into()))?;
 
-    if ticket.status == "dibatalkan" {
-        return Err(AppError::BadRequest("Tiket ini sudah dibatalkan atau kedaluwarsa".into()));
+    // Hanya izinkan status menunggu_pembayaran yang belum expired
+    match ticket.status.as_str() {
+        "lunas" => return Err(AppError::BadRequest("Tiket sudah lunas, bukti tidak perlu diunggah lagi".into())),
+        "sudah_checkin" => return Err(AppError::BadRequest("Tiket sudah digunakan untuk check-in".into())),
+        "dibatalkan" => return Err(AppError::BadRequest("Tiket ini sudah dibatalkan atau kedaluwarsa".into())),
+        _ => {}
     }
+    if ticket.expires_at <= Utc::now() {
+        return Err(AppError::BadRequest("Batas waktu pembayaran tiket sudah berakhir".into()));
+    }
+
+    // Hapus file lama jika sudah ada (hindari file yatim)
+    if let Some(ref old_url) = ticket.payment_proof_url {
+        let _ = delete_file(&config, old_url).await;
+    }
+
+    // Baru tulis file (Supabase Storage atau lokal)
+    let url = save_private_upload(&config, "proof", &content_type, &bytes).await?;
 
     // Update payment_proof_url
     sqlx::query(
@@ -531,35 +615,4 @@ pub async fn upload_payment_proof(
         "ticket_code": code,
         "payment_proof_url": url,
     })))
-}
-
-fn mask_name(name: &str) -> String {
-    name.split_whitespace()
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                Some(first) => {
-                    let rest = chars.count();
-                    if rest > 0 {
-                        format!("{}{}", first, "*".repeat(rest))
-                    } else {
-                        first.to_string()
-                    }
-                }
-                None => "".to_string(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn mask_phone(phone: &str) -> String {
-    let clean = phone.trim().replace(" ", "").replace("-", "");
-    if clean.len() <= 6 {
-        return "***".to_string();
-    }
-    let prefix = &clean[..4];
-    let suffix = &clean[clean.len() - 3..];
-    let stars = "*".repeat(clean.len() - 7);
-    format!("{}{}{}", prefix, stars, suffix)
 }

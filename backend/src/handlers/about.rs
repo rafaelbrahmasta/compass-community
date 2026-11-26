@@ -49,7 +49,7 @@ pub async fn upload_about_image(
             let ct = field.content_type().unwrap_or("image/jpeg").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
             if !data.is_empty() {
-                let saved = crate::utils::save_upload(&config.upload_dir, "about", &ct, &data).await?;
+                let saved = crate::utils::save_upload(&config, "about", &ct, &data).await?;
                 image_url = Some(saved);
             }
         }
@@ -131,7 +131,7 @@ pub async fn create_team_member(
                 let ct = field.content_type().unwrap_or("image/jpeg").to_string();
                 let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
                 if !data.is_empty() {
-                    photo_url = Some(crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?);
+                    photo_url = Some(crate::utils::save_upload(&config, "gallery", &ct, &data).await?);
                 }
             }
             _ => {}
@@ -195,7 +195,7 @@ pub async fn update_team_member_photo(
             let ct = field.content_type().unwrap_or("image/jpeg").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
             if !data.is_empty() {
-                photo_url = Some(crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?);
+                photo_url = Some(crate::utils::save_upload(&config, "gallery", &ct, &data).await?);
             }
         }
     }
@@ -216,3 +216,4 @@ pub async fn delete_team_member(
     sqlx::query("DELETE FROM team_members WHERE id = $1").bind(id).execute(&pool).await?;
     Ok(ok::<()>("Pengurus dihapus", ()))
 }
+

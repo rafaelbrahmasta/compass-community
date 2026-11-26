@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
+  Key,
+  Copy,
 } from 'lucide-react'
 import Modal from '../../components/common/Modal'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
@@ -24,6 +26,7 @@ import {
   adminUpdateMember,
   adminDeleteMember,
   adminImportMembersCsv,
+  adminResetMemberPin,
 } from '../../services/endpoints'
 import type { Member } from '../../types'
 
@@ -41,10 +44,24 @@ export default function AdminAnggota() {
   const [email, setEmail] = useState('')
   const [isActive, setIsActive] = useState(true)
 
+  // PIN Display Modal State
+  const [pinModal, setPinModal] = useState<{
+    open: boolean
+    title: string
+    memberName: string
+    memberCode: string
+    pin: string
+    note: string
+  } | null>(null)
+
   // CSV Import Modal State
   const [importModalOpen, setImportModalOpen] = useState(false)
   const [csvContent, setCsvContent] = useState('')
   const [importing, setImporting] = useState(false)
+  const [importedPinsModal, setImportedPinsModal] = useState<{
+    open: boolean
+    items: Array<{ member_code: string; full_name: string; phone: string; initial_pin: string }>
+  } | null>(null)
 
   // Query Members
   const { data, isLoading } = useQuery({
@@ -60,25 +77,40 @@ export default function AdminAnggota() {
   // Mutations
   const createMutation = useMutation({
     mutationFn: adminCreateMember,
-    onSuccess: () => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['admin-members'] })
-      toast.success('Anggota berhasil didaftarkan!')
       closeModal()
+      const resData = res.data.data
+      if (resData?.initial_pin) {
+        setPinModal({
+          open: true,
+          title: 'Anggota Berhasil Didaftarkan',
+          memberName: resData.member.full_name,
+          memberCode: resData.member.member_code,
+          pin: resData.initial_pin,
+          note: resData.pin_note || 'PIN ini hanya ditampilkan sekali. Catat dan segera bagikan ke anggota.',
+        })
+      } else {
+        toast.success('Anggota berhasil didaftarkan!')
+      }
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Gagal menambahkan anggota')
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal menambahkan anggota')
     },
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => adminUpdateMember(id, data),
+    mutationFn: ({ id, data }: { id: string; data: { full_name: string; phone: string; email?: string; is_active: boolean } }) =>
+      adminUpdateMember(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-members'] })
       toast.success('Data anggota berhasil diperbarui!')
       closeModal()
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Gagal memperbarui anggota')
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal memperbarui anggota')
     },
   })
 
@@ -88,10 +120,30 @@ export default function AdminAnggota() {
       queryClient.invalidateQueries({ queryKey: ['admin-members'] })
       toast.success('Anggota berhasil dihapus!')
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Gagal menghapus anggota')
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal menghapus anggota')
     },
   })
+
+  const handleResetPin = async (m: Member) => {
+    if (!window.confirm(`Yakin ingin mereset PIN untuk anggota ${m.full_name} (${m.member_code})?`)) return
+    try {
+      const res = await adminResetMemberPin(m.id)
+      const resData = res.data.data
+      setPinModal({
+        open: true,
+        title: 'Reset PIN Berhasil',
+        memberName: resData.full_name,
+        memberCode: resData.member_code,
+        pin: resData.new_pin,
+        note: resData.pin_note || 'PIN baru ini hanya ditampilkan sekali. Catat dan segera bagikan ke anggota.',
+      })
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal mereset PIN anggota')
+    }
+  }
 
   const openCreateModal = () => {
     setEditingMember(null)
@@ -152,7 +204,7 @@ export default function AdminAnggota() {
   }
 
   const handleExportCsv = () => {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1'
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     const token = localStorage.getItem('compass_token')
     fetch(`${apiUrl}/admin/members/export-csv`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -187,14 +239,22 @@ export default function AdminAnggota() {
     setImporting(true)
     try {
       const res = await adminImportMembersCsv(csvContent)
+      const resData = res.data.data
       toast.success(
-        `Impor selesai! Berhasil: ${res.data.data.success_count}, Gagal: ${res.data.data.error_count}`
+        `Impor selesai! Berhasil: ${resData.success_count}, Gagal: ${resData.error_count}`
       )
       queryClient.invalidateQueries({ queryKey: ['admin-members'] })
       setImportModalOpen(false)
       setCsvContent('')
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal mengimpor CSV')
+      if (resData.imported && resData.imported.length > 0) {
+        setImportedPinsModal({
+          open: true,
+          items: resData.imported,
+        })
+      }
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal mengimpor CSV')
     } finally {
       setImporting(false)
     }
@@ -356,6 +416,13 @@ export default function AdminAnggota() {
                           title="Ubah Anggota"
                         >
                           <Edit2 size={15} strokeWidth={1.5} />
+                        </button>
+                        <button
+                          onClick={() => handleResetPin(m)}
+                          className="p-1.5 rounded-lg text-white/60 hover:text-amber-400 hover:bg-white/5 transition-colors"
+                          title="Reset PIN Anggota (Buat PIN Baru)"
+                        >
+                          <Key size={15} strokeWidth={1.5} />
                         </button>
                         <button
                           onClick={() => handleDelete(m)}
@@ -555,6 +622,114 @@ export default function AdminAnggota() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* PIN DISPLAY MODAL */}
+      <Modal
+        isOpen={Boolean(pinModal?.open)}
+        onClose={() => setPinModal(null)}
+        title={pinModal?.title || 'PIN Anggota'}
+        size="sm"
+      >
+        <div className="space-y-4 text-center py-2">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs text-left">
+            <p className="font-bold mb-1">⚠️ PERINGATAN PENTING:</p>
+            <p>{pinModal?.note}</p>
+          </div>
+
+          <div className="text-left bg-black/40 p-3 rounded-xl border border-white/10 space-y-1 text-xs">
+            <div>
+              <span className="text-white/50">Nama:</span> <strong className="text-white">{pinModal?.memberName}</strong>
+            </div>
+            <div>
+              <span className="text-white/50">Kode:</span> <strong className="text-gold font-mono">{pinModal?.memberCode}</strong>
+            </div>
+          </div>
+
+          <div className="bg-[#060a08] border-2 border-gold/50 rounded-2xl p-5 my-2">
+            <span className="text-[11px] text-white/50 uppercase tracking-widest block mb-1">PIN 6 Digit</span>
+            <div className="text-4xl font-mono font-black text-gold tracking-widest">{pinModal?.pin}</div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                if (pinModal?.pin) {
+                  navigator.clipboard.writeText(pinModal.pin)
+                  toast.success('PIN berhasil disalin ke clipboard!')
+                }
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-gold text-dark font-heading font-black uppercase tracking-wider text-xs hover:brightness-110 flex items-center justify-center gap-1.5 transition-all shadow-md"
+            >
+              <Copy size={14} />
+              <span>Salin PIN</span>
+            </button>
+            <button
+              onClick={() => setPinModal(null)}
+              className="px-4 py-2.5 rounded-xl border border-white/20 text-white/80 hover:bg-white/5 text-xs transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* IMPORTED PINS MODAL */}
+      <Modal
+        isOpen={Boolean(importedPinsModal?.open)}
+        onClose={() => setImportedPinsModal(null)}
+        title="Daftar PIN Anggota Baru Diimpor"
+        size="lg"
+      >
+        <div className="space-y-4 py-2 text-xs">
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300">
+            <p className="font-bold mb-1">⚠️ Catat sekarang! PIN ini tidak akan ditampilkan lagi:</p>
+            <p className="text-[11px] text-amber-300/80">Salin daftar kode anggota dan PIN di bawah ini untuk dibagikan ke masing-masing suporter.</p>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto border border-white/10 rounded-xl">
+            <table className="w-full text-left">
+              <thead className="bg-black/50 text-white/60 text-[11px] uppercase border-b border-white/10 sticky top-0">
+                <tr>
+                  <th className="py-2 px-3">Kode</th>
+                  <th className="py-2 px-3">Nama</th>
+                  <th className="py-2 px-3">No. HP</th>
+                  <th className="py-2 px-3 text-gold">PIN 6 Digit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 font-mono">
+                {importedPinsModal?.items.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-white/5">
+                    <td className="py-2 px-3 text-gold">{item.member_code}</td>
+                    <td className="py-2 px-3 font-sans text-white">{item.full_name}</td>
+                    <td className="py-2 px-3 text-white/70">{item.phone}</td>
+                    <td className="py-2 px-3 font-bold text-emerald-400 tracking-wider">{item.initial_pin}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              onClick={() => {
+                const text = importedPinsModal?.items.map(i => `${i.member_code}\t${i.full_name}\t${i.phone}\t${i.initial_pin}`).join('\n') || ''
+                navigator.clipboard.writeText(text)
+                toast.success('Daftar PIN berhasil disalin!')
+              }}
+              className="px-4 py-2 bg-gold text-dark font-heading font-black uppercase tracking-wider text-xs rounded-xl hover:brightness-110 flex items-center gap-1.5 transition-all shadow-md"
+            >
+              <Copy size={14} />
+              <span>Salin Semua PIN</span>
+            </button>
+            <button
+              onClick={() => setImportedPinsModal(null)}
+              className="px-4 py-2 rounded-xl border border-white/20 text-white/80 hover:bg-white/5 text-xs transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

@@ -32,6 +32,7 @@ export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const isSuperAdmin = admin?.role === 'super_admin'
+  const isAdmin1OrAbove = admin?.role === 'super_admin' || admin?.role === 'admin_1'
 
   // Definisi Menu Lengkap Berdasarkan Hak Akses (RBAC)
   const navSections = [
@@ -41,6 +42,17 @@ export default function AdminLayout() {
         { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       ],
     },
+    // Modul Operasional Gerbang untuk Petugas (admin_1)
+    ...(isAdmin1OrAbove && !isSuperAdmin
+      ? [
+          {
+            title: 'Operasional Tiket',
+            items: [
+              { to: '/admin/pembayaran-tiket', label: 'Pesanan & Check-in Tiket', icon: Receipt },
+            ],
+          },
+        ]
+      : []),
     // Modul Khusus Super Admin
     ...(isSuperAdmin
       ? [

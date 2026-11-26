@@ -14,7 +14,7 @@ use crate::errors::AppError;
 static TICKET_RATE_LIMITER: OnceLock<TicketRateLimiter> = OnceLock::new();
 static LOGIN_RATE_LIMITER: OnceLock<TicketRateLimiter> = OnceLock::new();
 
-pub(crate) struct TicketRateLimiter {
+pub struct TicketRateLimiter {
     store: std::sync::Mutex<HashMap<String, Vec<Instant>>>,
     max_requests: usize,
     window_secs: u64,

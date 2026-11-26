@@ -12,6 +12,7 @@ use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{TicketPurchase, TicketBankSettings};
 use crate::utils::email::send_email_async;
+use crate::utils::{sanitize_csv_field, escape_like_pattern};
 
 #[derive(Deserialize)]
 pub struct AdminTicketsQuery {
@@ -61,7 +62,7 @@ pub async fn admin_list_tickets(
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(15).max(1).min(100);
     let offset = (page - 1) * per_page;
-    let search = params.q.map(|s| format!("%{}%", s.trim()));
+    let search = params.q.map(|s| format!("%{}%", escape_like_pattern(s.trim())));
 
     let total: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*)
@@ -70,10 +71,10 @@ pub async fn admin_list_tickets(
            WHERE ($1::uuid IS NULL OR tp.match_id = $1)
              AND ($2::text IS NULL OR tp.status = $2)
              AND ($3::text IS NULL OR (
-                 tp.ticket_code ILIKE $3 OR
-                 m.member_code ILIKE $3 OR
-                 m.full_name ILIKE $3 OR
-                 m.phone ILIKE $3
+                 tp.ticket_code ILIKE $3 ESCAPE '\' OR
+                 m.member_code ILIKE $3 ESCAPE '\' OR
+                 m.full_name ILIKE $3 ESCAPE '\' OR
+                 m.phone ILIKE $3 ESCAPE '\'
              ))"#
     )
     .bind(params.match_id)
@@ -96,10 +97,10 @@ pub async fn admin_list_tickets(
            WHERE ($1::uuid IS NULL OR tp.match_id = $1)
              AND ($2::text IS NULL OR tp.status = $2)
              AND ($3::text IS NULL OR (
-                 tp.ticket_code ILIKE $3 OR
-                 m.member_code ILIKE $3 OR
-                 m.full_name ILIKE $3 OR
-                 m.phone ILIKE $3
+                 tp.ticket_code ILIKE $3 ESCAPE '\' OR
+                 m.member_code ILIKE $3 ESCAPE '\' OR
+                 m.full_name ILIKE $3 ESCAPE '\' OR
+                 m.phone ILIKE $3 ESCAPE '\'
              ))
            ORDER BY tp.created_at DESC
            LIMIT $4 OFFSET $5"#
@@ -283,7 +284,7 @@ pub async fn admin_checkin_ticket(
            JOIN matches mt ON mt.id = tp.match_id
            JOIN ticket_categories tc ON tc.id = tp.category_id
            WHERE tp.ticket_code = $1 OR tp.qr_payload = $2
-           FOR UPDATE"#
+           FOR UPDATE OF tp"#
     )
     .bind(ticket_code)
     .bind(input)
@@ -301,11 +302,17 @@ pub async fn admin_checkin_ticket(
         }
     }
 
-    // Validasi 2: Kesesuaian Waktu Laga (pertandingan yang sudah lewat tidak boleh check-in)
+    // Validasi 2: Kesesuaian Waktu Laga - hanya boleh check-in pada hari pertandingan
     let today_jakarta = (Utc::now() + Duration::hours(7)).date_naive();
     if ticket.match_date < today_jakarta {
         return Err(AppError::BadRequest(format!(
             "Pertandingan telah berakhir pada tanggal {}. Tiket ini sudah kedaluwarsa dan tidak dapat digunakan.",
+            ticket.match_date.format("%d-%m-%Y")
+        )));
+    }
+    if ticket.match_date > today_jakarta {
+        return Err(AppError::BadRequest(format!(
+            "Laga belum dimulai. Pertandingan dijadwalkan pada tanggal {}. Check-in hanya bisa dilakukan pada hari pertandingan.",
             ticket.match_date.format("%d-%m-%Y")
         )));
     }
@@ -349,16 +356,6 @@ pub async fn admin_checkin_ticket(
         "match_date": ticket.match_date,
         "checked_in_at": Utc::now(),
     })))
-}
-
-// Helper untuk sanitasi formula injection pada CSV export
-fn sanitize_csv_field(val: &str) -> String {
-    let trimmed = val.trim();
-    if trimmed.starts_with('=') || trimmed.starts_with('+') || trimmed.starts_with('-') || trimmed.starts_with('@') {
-        format!("'{}", trimmed)
-    } else {
-        trimmed.to_string()
-    }
 }
 
 pub async fn admin_export_tickets_csv(
@@ -407,7 +404,7 @@ pub async fn admin_export_tickets_csv(
             sanitize_csv_field(&item.ticket_code),
             sanitize_csv_field(&item.member_code),
             sanitize_csv_field(&item.full_name),
-            sanitize_csv_field(&item.phone),
+            item.phone.clone(), // Bug 15: nomor HP tidak di-sanitasi agar format + tidak rusak
             sanitize_csv_field(&format!("PSS Sleman vs {}", item.opponent_name)),
             sanitize_csv_field(&item.category_name),
             item.price.to_string(),
@@ -428,6 +425,76 @@ pub async fn admin_export_tickets_csv(
         .header(header::CONTENT_DISPOSITION, "attachment; filename=\"data-pesanan-tiket-compass.csv\"")
         .body(axum::body::Body::from(csv_data))
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal response CSV: {}", e)))?;
+
+    Ok(response)
+}
+
+/// Bug 4: Endpoint admin terautentikasi untuk mengambil file bukti transfer secara aman
+pub async fn admin_get_ticket_proof(
+    State((pool, config)): State<(PgPool, Config)>,
+    Path(id): Path<Uuid>,
+) -> Result<Response, AppError> {
+    let ticket = sqlx::query_as::<_, TicketPurchase>(
+        "SELECT * FROM ticket_purchases WHERE id = $1"
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Tiket tidak ditemukan".into()))?;
+
+    let proof_url = ticket.payment_proof_url
+        .ok_or_else(|| AppError::NotFound("Bukti transfer belum diunggah untuk tiket ini".into()))?;
+
+    // Jika menggunakan Supabase Storage, redirect ke signed URL
+    if proof_url.starts_with("supabase-private://") {
+        if config.supabase_url.is_empty() || config.supabase_service_key.is_empty() {
+            return Err(AppError::Internal(anyhow::anyhow!("Supabase tidak dikonfigurasi")));
+        }
+        let signed = crate::utils::storage::storage_create_signed_url(
+            &config.supabase_url,
+            &config.supabase_service_key,
+            &proof_url,
+            3600, // 1 jam
+        ).await?;
+        // Redirect ke signed URL
+        let resp = Response::builder()
+            .status(axum::http::StatusCode::FOUND)
+            .header(axum::http::header::LOCATION, &signed)
+            .body(axum::body::Body::empty())
+            .map_err(|e| AppError::Internal(anyhow::anyhow!("Redirect error: {}", e)))?;
+        return Ok(resp);
+    }
+
+    let clean = proof_url.trim_start_matches('/');
+    // Cek di folder privat dulu
+    let priv_file = format!("{}_private/{}", config.upload_dir, clean.trim_start_matches("uploads_private/"));
+    let final_path = if tokio::fs::try_exists(&priv_file).await.unwrap_or(false) {
+        std::path::PathBuf::from(priv_file)
+    } else {
+        // Fallback cek di folder upload biasa
+        let pub_file = format!("{}/{}", config.upload_dir, clean.trim_start_matches("uploads/"));
+        std::path::PathBuf::from(pub_file)
+    };
+
+    if !tokio::fs::try_exists(&final_path).await.unwrap_or(false) {
+        return Err(AppError::NotFound("File bukti transfer tidak ditemukan di server".into()));
+    }
+
+    let bytes = tokio::fs::read(&final_path).await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal membaca file bukti: {}", e)))?;
+
+    let ext = final_path.extension().and_then(|s| s.to_str()).unwrap_or("jpg");
+    let content_type = match ext.to_lowercase().as_str() {
+        "png" => "image/png",
+        "webp" => "image/webp",
+        _ => "image/jpeg",
+    };
+
+    let response = Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, content_type)
+        .header(axum::http::header::CACHE_CONTROL, "private, no-cache, no-store, must-revalidate")
+        .body(axum::body::Body::from(bytes))
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal membuat response bukti: {}", e)))?;
 
     Ok(response)
 }

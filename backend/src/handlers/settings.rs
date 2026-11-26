@@ -63,7 +63,7 @@ pub async fn upload_logo(
         if field.name() == Some("image") {
             let ct = field.content_type().unwrap_or("image/png").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = crate::utils::save_upload(&config.upload_dir, "gallery", &ct, &data).await?;
+            let url = crate::utils::save_upload(&config, "gallery", &ct, &data).await?;
             sqlx::query(
                 "INSERT INTO site_settings (id, key, value) VALUES ($1, 'logo_url', $2)
                  ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()"
@@ -73,3 +73,4 @@ pub async fn upload_logo(
     }
     Err(AppError::BadRequest("Field 'image' tidak ditemukan".into()))
 }
+

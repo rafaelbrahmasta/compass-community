@@ -168,7 +168,7 @@ pub async fn upload_product_image(
         if field.name() == Some("image") {
             let ct = field.content_type().unwrap_or("image/jpeg").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = crate::utils::save_upload(&config.upload_dir, "merch", &ct, &data).await?;
+            let url = crate::utils::save_upload(&config, "merch", &ct, &data).await?;
 
             let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM merch_images WHERE product_id = $1")
                 .bind(product_id).fetch_one(&pool).await?;
@@ -188,3 +188,4 @@ pub async fn delete_product_image(State((pool, _config)): State<(PgPool, Config)
     sqlx::query("DELETE FROM merch_images WHERE id = $1").bind(id).execute(&pool).await?;
     Ok(ok::<()>("Gambar dihapus", ()))
 }
+

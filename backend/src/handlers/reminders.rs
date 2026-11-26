@@ -1,11 +1,13 @@
-use axum::{extract::{State}, Json};
+use axum::{extract::{ConnectInfo, State}, Json, http::HeaderMap};
+use std::net::SocketAddr;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
-use chrono::Duration;
+use chrono::{Duration, Utc};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::{Match, Reminder};
+use crate::utils::{limiter, extract_ip};
 
 #[derive(Deserialize)]
 pub struct CreateReminderRequest {
@@ -17,11 +19,22 @@ pub struct CreateReminderRequest {
 
 pub async fn create_reminder(
     State((pool, _config)): State<(PgPool, Config)>,
+    ConnectInfo(conn_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Json(body): Json<CreateReminderRequest>,
 ) -> AppResult<impl axum::response::IntoResponse> {
+    // Bug 10: rate limit
+    limiter().check(&extract_ip(&headers, Some(conn_addr)))?;
+
     // Validate remind_before
     if !["h_minus_1_day", "h_minus_3_hours"].contains(&body.remind_before.as_str()) {
         return Err(AppError::BadRequest("remind_before tidak valid. Gunakan 'h_minus_1_day' atau 'h_minus_3_hours'".into()));
+    }
+
+    // Bug 10: validasi format email
+    let clean_email = body.email.trim().to_lowercase();
+    if !clean_email.contains('@') || !clean_email.contains('.') || clean_email.len() < 5 {
+        return Err(AppError::BadRequest("Format email tidak valid".into()));
     }
 
     // Get match to calculate scheduled_at
@@ -31,8 +44,6 @@ pub async fn create_reminder(
         .ok_or_else(|| AppError::NotFound("Pertandingan tidak ditemukan".into()))?;
 
     // Calculate scheduled_at
-    // Jadwal pertandingan disimpan dalam waktu lokal WIB (UTC+7).
-    // Konversi WIB ke UTC dengan mengurangi 7 jam:
     let match_datetime_utc = m.match_date.and_time(m.match_time).and_utc() - Duration::hours(7);
     let scheduled_at = if body.remind_before == "h_minus_1_day" {
         match_datetime_utc - Duration::days(1)
@@ -40,11 +51,16 @@ pub async fn create_reminder(
         match_datetime_utc - Duration::hours(3)
     };
 
+    // Bug 10: tolak jika scheduled_at sudah lewat
+    if scheduled_at <= Utc::now() {
+        return Err(AppError::BadRequest("Waktu reminder sudah lewat. Pertandingan akan segera berlangsung atau sudah selesai.".into()));
+    }
+
     // Check duplicate
     let exists: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM reminders WHERE match_id = $1 AND email = $2 AND remind_before = $3"
     )
-    .bind(body.match_id).bind(&body.email).bind(&body.remind_before)
+    .bind(body.match_id).bind(&clean_email).bind(&body.remind_before)
     .fetch_one(&pool).await?;
 
     if exists > 0 {
@@ -57,7 +73,7 @@ pub async fn create_reminder(
     )
     .bind(Uuid::new_v4())
     .bind(body.match_id)
-    .bind(&body.email)
+    .bind(&clean_email)
     .bind(&body.whatsapp)
     .bind(&body.remind_before)
     .bind(scheduled_at)

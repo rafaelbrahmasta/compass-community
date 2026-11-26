@@ -15,6 +15,11 @@ pub struct Config {
     pub frontend_url: String,
     pub port: u16,
     pub seed_demo: bool,
+    // Supabase Storage
+    pub supabase_url: String,
+    pub supabase_service_key: String,
+    pub supabase_bucket: String,
+    pub supabase_private_bucket: String,
 }
 
 impl Config {
@@ -46,6 +51,12 @@ impl Config {
             seed_demo: std::env::var("SEED_DEMO")
                 .map(|v| v.to_lowercase() == "true" || v == "1")
                 .unwrap_or(false),
+            supabase_url: std::env::var("SUPABASE_URL").unwrap_or_default(),
+            supabase_service_key: std::env::var("SUPABASE_SERVICE_KEY").unwrap_or_default(),
+            supabase_bucket: std::env::var("SUPABASE_BUCKET")
+                .unwrap_or_else(|_| "compass-uploads".into()),
+            supabase_private_bucket: std::env::var("SUPABASE_PRIVATE_BUCKET")
+                .unwrap_or_else(|_| "compass-private".into()),
         })
     }
 }

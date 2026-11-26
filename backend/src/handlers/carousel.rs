@@ -110,7 +110,7 @@ pub async fn upload_slide_image(
         if field.name() == Some("image") {
             let content_type = field.content_type().unwrap_or("image/jpeg").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = crate::utils::save_upload(&config.upload_dir, "gallery", &content_type, &data).await?;
+            let url = crate::utils::save_upload(&config, "gallery", &content_type, &data).await?;
 
             sqlx::query("UPDATE carousel_slides SET image_url = $1 WHERE id = $2")
                 .bind(&url)
@@ -123,3 +123,4 @@ pub async fn upload_slide_image(
     }
     Err(AppError::BadRequest("Field 'image' tidak ditemukan".into()))
 }
+

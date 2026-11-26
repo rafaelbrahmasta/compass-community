@@ -3,17 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import {
   Receipt,
-  QrCode,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   Clock3,
   Download,
-  AlertCircle,
-  Calendar,
   Check,
-  Ban,
   Scan,
 } from 'lucide-react'
 import Modal from '../../components/common/Modal'
@@ -22,9 +17,9 @@ import {
   adminGetTicketPurchases,
   adminUpdateTicketStatus,
   adminCheckinTicket,
+  adminGetTicketProofBlob,
   getMatches,
 } from '../../services/endpoints'
-import { getAssetUrl } from '../../services/api'
 import type { TicketPurchase, Match } from '../../types'
 
 export default function AdminPembayaranTiket() {
@@ -39,7 +34,14 @@ export default function AdminPembayaranTiket() {
   const [checkinModalOpen, setCheckinModalOpen] = useState(false)
   const [checkinMatchId, setCheckinMatchId] = useState('')
   const [scanInput, setScanInput] = useState('')
-  const [checkinSuccessData, setCheckinSuccessData] = useState<any | null>(null)
+  const [checkinSuccessData, setCheckinSuccessData] = useState<{
+    ticket_code: string
+    full_name: string
+    member_code: string
+    opponent_name: string
+    category_name: string
+    stadium: string
+  } | null>(null)
 
   // Status Change Modal State
   const [statusModalOpen, setStatusModalOpen] = useState(false)
@@ -49,7 +51,35 @@ export default function AdminPembayaranTiket() {
 
   // Preview Bukti Transfer Modal State
   const [proofModalOpen, setProofModalOpen] = useState(false)
-  const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null)
+  const [proofBlobUrl, setProofBlobUrl] = useState<string | null>(null)
+  const [proofLoading, setProofLoading] = useState(false)
+
+  const handleOpenProof = async (ticket: TicketPurchase) => {
+    setProofModalOpen(true)
+    setProofLoading(true)
+    if (proofBlobUrl) {
+      URL.revokeObjectURL(proofBlobUrl)
+      setProofBlobUrl(null)
+    }
+    try {
+      const blob = await adminGetTicketProofBlob(ticket.id)
+      const objectUrl = URL.createObjectURL(blob)
+      setProofBlobUrl(objectUrl)
+    } catch {
+      toast.error('Gagal memuat bukti transfer dari server terautentikasi')
+      setProofBlobUrl(null)
+    } finally {
+      setProofLoading(false)
+    }
+  }
+
+  const handleCloseProof = () => {
+    setProofModalOpen(false)
+    if (proofBlobUrl) {
+      URL.revokeObjectURL(proofBlobUrl)
+      setProofBlobUrl(null)
+    }
+  }
 
   // Query Matches for filter dropdown
   const { data: matchesData } = useQuery({
@@ -78,7 +108,7 @@ export default function AdminPembayaranTiket() {
 
   // Mutations
   const updateStatusMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: { status: string; notes?: string } }) =>
       adminUpdateTicketStatus(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-tickets-list'] })
@@ -86,21 +116,23 @@ export default function AdminPembayaranTiket() {
       setStatusModalOpen(false)
       setSelectedTicket(null)
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Gagal mengubah status tiket')
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal mengubah status tiket')
     },
   })
 
   const checkinMutation = useMutation({
     mutationFn: (payload: { code_or_payload: string; match_id?: string }) => adminCheckinTicket(payload),
-    onSuccess: (res: any) => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['admin-tickets-list'] })
       setCheckinSuccessData(res.data.data)
       toast.success('Check-in Berhasil! Tiket valid.')
       setScanInput('')
     },
-    onError: (err: any) => {
-      toast.error(err.response?.data?.message || 'Gagal check-in tiket')
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal check-in tiket')
     },
   })
 
@@ -131,7 +163,7 @@ export default function AdminPembayaranTiket() {
   }
 
   const handleExportCsv = () => {
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || '/api/v1'
+    const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
     const token = localStorage.getItem('compass_token')
     const query = new URLSearchParams()
     if (matchFilter) query.append('match_id', matchFilter)
@@ -341,10 +373,7 @@ export default function AdminPembayaranTiket() {
                       {t.payment_proof_url ? (
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedProofUrl(t.payment_proof_url || null)
-                            setProofModalOpen(true)
-                          }}
+                          onClick={() => handleOpenProof(t)}
                           className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 hover:underline bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20"
                         >
                           Lihat Bukti Transfer
@@ -560,22 +589,27 @@ export default function AdminPembayaranTiket() {
         </form>
       </Modal>
 
-      {/* MODAL PREVIEW BUKTI TRANSFER */}
+      {/* MODAL PREVIEW BUKTI TRANSFER (Bug 4: Ambil via auth endpoint dan render Blob) */}
       <Modal
         isOpen={proofModalOpen}
-        onClose={() => setProofModalOpen(false)}
+        onClose={handleCloseProof}
         title="Bukti Pembayaran / Transfer"
         size="md"
       >
         <div className="text-center p-2">
-          {selectedProofUrl ? (
+          {proofLoading ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-2">
+              <LoadingSpinner size="md" />
+              <span className="text-xs text-white/50">Memuat gambar bukti transfer dari server aman...</span>
+            </div>
+          ) : proofBlobUrl ? (
             <img
-              src={getAssetUrl(selectedProofUrl)}
+              src={proofBlobUrl}
               alt="Bukti Transfer"
               className="max-h-[70vh] mx-auto rounded-xl object-contain border border-white/10 shadow-lg"
             />
           ) : (
-            <p className="text-white/40 py-8 italic">Tidak ada gambar bukti transfer.</p>
+            <p className="text-white/40 py-8 italic">Tidak ada gambar bukti transfer atau gagal dimuat.</p>
           )}
         </div>
       </Modal>

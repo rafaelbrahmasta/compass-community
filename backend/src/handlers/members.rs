@@ -11,6 +11,7 @@ use chrono::{DateTime, Utc};
 use crate::config::Config;
 use crate::errors::{AppError, AppResult, ok};
 use crate::models::Member;
+use crate::utils::{generate_random_pin, hash_pin, sanitize_csv_field, escape_like_pattern};
 
 #[derive(Deserialize)]
 pub struct MemberQuery {
@@ -39,15 +40,15 @@ pub async fn admin_get_members(
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(15).max(1).min(100);
     let offset = (page - 1) * per_page;
-    let search = params.q.map(|s| format!("%{}%", s.trim()));
+    let search = params.q.map(|s| format!("%{}%", escape_like_pattern(s.trim())));
 
     let total: i64 = sqlx::query_scalar(
         r#"SELECT COUNT(*) FROM members
            WHERE ($1::text IS NULL OR (
-               member_code ILIKE $1 OR
-               full_name ILIKE $1 OR
-               phone ILIKE $1 OR
-               COALESCE(email, '') ILIKE $1
+               member_code ILIKE $1 ESCAPE '\' OR
+               full_name ILIKE $1 ESCAPE '\' OR
+               phone ILIKE $1 ESCAPE '\' OR
+               COALESCE(email, '') ILIKE $1 ESCAPE '\'
            ))"#
     )
     .bind(&search)
@@ -61,10 +62,10 @@ pub async fn admin_get_members(
            FROM members m
            LEFT JOIN ticket_purchases tp ON tp.member_id = m.id AND tp.status != 'dibatalkan'
            WHERE ($1::text IS NULL OR (
-               m.member_code ILIKE $1 OR
-               m.full_name ILIKE $1 OR
-               m.phone ILIKE $1 OR
-               COALESCE(m.email, '') ILIKE $1
+               m.member_code ILIKE $1 ESCAPE '\' OR
+               m.full_name ILIKE $1 ESCAPE '\' OR
+               m.phone ILIKE $1 ESCAPE '\' OR
+               COALESCE(m.email, '') ILIKE $1 ESCAPE '\'
            ))
            GROUP BY m.id
            ORDER BY m.created_at DESC
@@ -130,9 +131,14 @@ pub async fn admin_create_member(
         .await?;
     let member_code = format!("CMP-{:04}", seq_val);
 
+    // Generate PIN acak dan hash-nya
+    let initial_pin = generate_random_pin();
+    let pin_hash = hash_pin(&initial_pin)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal generate PIN: {}", e)))?;
+
     let member = sqlx::query_as::<_, Member>(
-        r#"INSERT INTO members (id, member_code, full_name, phone, email, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6)
+        r#"INSERT INTO members (id, member_code, full_name, phone, email, is_active, pin_hash)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
            RETURNING *"#
     )
     .bind(Uuid::new_v4())
@@ -141,10 +147,15 @@ pub async fn admin_create_member(
     .bind(phone)
     .bind(body.email.as_deref().map(|s| s.trim()))
     .bind(body.is_active.unwrap_or(true))
+    .bind(&pin_hash)
     .fetch_one(&pool)
     .await?;
 
-    Ok(ok("Anggota berhasil didaftarkan", member))
+    Ok(ok("Anggota berhasil didaftarkan", serde_json::json!({
+        "member": member,
+        "initial_pin": initial_pin,
+        "pin_note": "PIN ini hanya ditampilkan sekali. Catat dan bagikan ke anggota.",
+    })))
 }
 
 #[derive(Deserialize)]
@@ -230,6 +241,7 @@ pub async fn admin_import_csv(
 
     let mut success_count = 0;
     let mut error_rows: Vec<String> = Vec::new();
+    let mut imported_members: Vec<serde_json::Value> = Vec::new();
 
     for (index, result) in reader.records().enumerate() {
         match result {
@@ -260,20 +272,40 @@ pub async fn admin_import_csv(
                 };
                 let member_code = format!("CMP-{:04}", seq_val);
 
-                let insert_res = sqlx::query(
-                    r#"INSERT INTO members (id, member_code, full_name, phone, email, is_active)
-                       VALUES ($1, $2, $3, $4, $5, true)"#
+                // Generate PIN acak per anggota
+                let member_pin = generate_random_pin();
+                let pin_hash_val = match hash_pin(&member_pin) {
+                    Ok(h) => h,
+                    Err(e) => {
+                        error_rows.push(format!("Baris {}: Gagal hash PIN: {}", index + 2, e));
+                        continue;
+                    }
+                };
+
+                let insert_res = sqlx::query_as::<_, Member>(
+                    r#"INSERT INTO members (id, member_code, full_name, phone, email, is_active, pin_hash)
+                       VALUES ($1, $2, $3, $4, $5, true, $6)
+                       RETURNING *"#
                 )
                 .bind(Uuid::new_v4())
                 .bind(&member_code)
                 .bind(full_name)
                 .bind(phone)
                 .bind(email)
-                .execute(&pool)
+                .bind(&pin_hash_val)
+                .fetch_one(&pool)
                 .await;
 
                 match insert_res {
-                    Ok(_) => success_count += 1,
+                    Ok(m) => {
+                        success_count += 1;
+                        imported_members.push(serde_json::json!({
+                            "member_code": m.member_code,
+                            "full_name": m.full_name,
+                            "phone": m.phone,
+                            "initial_pin": member_pin,
+                        }));
+                    },
                     Err(e) => error_rows.push(format!("Baris {}: {}", index + 2, e)),
                 }
             }
@@ -287,16 +319,9 @@ pub async fn admin_import_csv(
         "success_count": success_count,
         "error_count": error_rows.len(),
         "errors": error_rows,
+        "imported": imported_members,
+        "pin_note": "PIN hanya ditampilkan sekali. Salin dan bagikan ke masing-masing anggota.",
     })))
-}
-
-fn sanitize_csv_field(val: &str) -> String {
-    let trimmed = val.trim();
-    if trimmed.starts_with('=') || trimmed.starts_with('+') || trimmed.starts_with('-') || trimmed.starts_with('@') {
-        format!("'{}", trimmed)
-    } else {
-        trimmed.to_string()
-    }
 }
 
 pub async fn admin_export_csv(
@@ -329,7 +354,7 @@ pub async fn admin_export_csv(
         wtr.write_record(&[
             sanitize_csv_field(&m.member_code),
             sanitize_csv_field(&m.full_name),
-            sanitize_csv_field(&m.phone),
+            m.phone.clone(), // nomor HP tidak di-sanitasi
             sanitize_csv_field(&m.email.unwrap_or_default()),
             if m.is_active { "Aktif".to_string() } else { "Nonaktif".to_string() },
             m.ticket_count.to_string(),
@@ -347,4 +372,31 @@ pub async fn admin_export_csv(
         .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal response CSV: {}", e)))?;
 
     Ok(response)
+}
+
+/// Bug 1: Endpoint reset PIN anggota (super_admin only)
+pub async fn admin_reset_member_pin(
+    State((pool, _config)): State<(PgPool, Config)>,
+    Path(id): Path<Uuid>,
+) -> AppResult<impl axum::response::IntoResponse> {
+    let new_pin = generate_random_pin();
+    let pin_hash = hash_pin(&new_pin)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("Gagal hash PIN: {}", e)))?;
+
+    let member = sqlx::query_as::<_, Member>(
+        "UPDATE members SET pin_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING *"
+    )
+    .bind(&pin_hash)
+    .bind(id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Anggota tidak ditemukan".into()))?;
+
+    Ok(ok("PIN anggota berhasil direset", serde_json::json!({
+        "member_id": member.id,
+        "member_code": member.member_code,
+        "full_name": member.full_name,
+        "new_pin": new_pin,
+        "pin_note": "PIN baru hanya ditampilkan sekali. Catat dan segera bagikan ke anggota.",
+    })))
 }

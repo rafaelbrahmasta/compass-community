@@ -14,7 +14,6 @@ import {
   Copy,
   ArrowLeft,
   QrCode,
-  ShieldCheck,
   Upload,
 } from 'lucide-react'
 import Modal from '../../components/common/Modal'
@@ -23,14 +22,23 @@ import LoadingSpinner from '../../components/common/LoadingSpinner'
 import { checkTicket, uploadTicketPaymentProof } from '../../services/endpoints'
 import type { TicketPurchase } from '../../types'
 
+interface BankInfoType {
+  bank_name?: string
+  account_name?: string
+  account_number?: string
+  qr_image_url?: string
+  instructions?: string
+}
+
 export default function CekTiket() {
   const [searchMode, setSearchMode] = useState<'code' | 'member'>('code')
   const [ticketCode, setTicketCode] = useState('')
   const [memberCode, setMemberCode] = useState('')
   const [phone, setPhone] = useState('')
+  const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [tickets, setTickets] = useState<TicketPurchase[] | null>(null)
-  const [bankInfo, setBankInfo] = useState<any | null>(null)
+  const [bankInfo, setBankInfo] = useState<BankInfoType | null>(null)
   const [searched, setSearched] = useState(false)
 
   // Upload Proof State
@@ -47,14 +55,14 @@ export default function CekTiket() {
     try {
       const params =
         searchMode === 'code'
-          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim() }
-          : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim() }
+          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim(), pin: pin.trim() }
+          : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim(), pin: pin.trim() }
 
       const res = await checkTicket(params)
       const resData = res.data.data
       const list = Array.isArray(resData) ? resData : (resData?.tickets || [])
       setTickets(list)
-      if (resData?.bank_info) setBankInfo(resData.bank_info)
+      if (resData?.bank_info) setBankInfo(resData.bank_info as Record<string, unknown>)
       toast.success('Data tiket berhasil ditemukan!')
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } }
@@ -84,14 +92,15 @@ export default function CekTiket() {
       // Refresh tiket
       if (ticketCode || memberCode) {
         const params = searchMode === 'code'
-          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim() }
-          : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim() }
+          ? { ticket_code: ticketCode.trim().toUpperCase(), phone: phone.trim(), pin: pin.trim() }
+          : { member_code: memberCode.trim().toUpperCase(), phone: phone.trim(), pin: pin.trim() }
         const r = await checkTicket(params)
         const d = r.data.data
         setTickets(Array.isArray(d) ? d : (d?.tickets || []))
       }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Gagal mengunggah bukti pembayaran')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      toast.error(error.response?.data?.message || 'Gagal mengunggah bukti pembayaran')
     } finally {
       setUploading(false)
     }
@@ -260,6 +269,24 @@ export default function CekTiket() {
                   </div>
                 </div>
               )}
+
+              <div>
+                <label className="block text-white/80 text-xs font-semibold uppercase mb-1.5">
+                  PIN Anggota (6 Digit) <span className="text-gold">*</span>
+                </label>
+                <input
+                  type="password"
+                  maxLength={6}
+                  required
+                  value={pin}
+                  onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Masukkan 6 digit PIN anggota"
+                  className="w-full bg-[#060a08] border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono tracking-widest"
+                />
+                <p className="text-[11px] text-white/40 mt-1">
+                  PIN dari admin Compass untuk melindungi tiket dan QR code Anda.
+                </p>
+              </div>
 
               <button
                 type="submit"

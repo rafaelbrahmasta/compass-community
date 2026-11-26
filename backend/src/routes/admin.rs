@@ -1,4 +1,5 @@
 use axum::{
+    extract::DefaultBodyLimit,
     middleware::from_fn,
     routing::{delete, get, post, put},
     Router,
@@ -6,7 +7,7 @@ use axum::{
 use sqlx::PgPool;
 use crate::config::Config;
 use crate::handlers;
-use crate::middleware::{auth_middleware, require_any_admin, require_super_admin};
+use crate::middleware::{auth_middleware, require_any_admin, require_super_admin, require_admin_1_or_above};
 
 pub fn admin_routes(pool: PgPool, config: Config) -> Router {
     // 1. Rute yang dapat diakses oleh semua admin (super_admin, admin_1, admin_2)
@@ -51,14 +52,14 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/merch/products", post(handlers::merch::create_product))
         .route("/admin/merch/products/:id", put(handlers::merch::update_product))
         .route("/admin/merch/products/:id", delete(handlers::merch::delete_product))
-        .route("/admin/merch/products/:id/images", post(handlers::merch::upload_product_image))
+        .route("/admin/merch/products/:id/images", post(handlers::merch::upload_product_image).layer(DefaultBodyLimit::max(50 * 1024 * 1024)))
         .route("/admin/merch/images/:id", delete(handlers::merch::delete_product_image))
         // Gallery
         .route("/admin/gallery/albums", get(handlers::gallery::admin_get_albums))
         .route("/admin/gallery/albums", post(handlers::gallery::create_album))
         .route("/admin/gallery/albums/:id", put(handlers::gallery::update_album))
         .route("/admin/gallery/albums/:id", delete(handlers::gallery::delete_album))
-        .route("/admin/gallery/albums/:id/photos", post(handlers::gallery::upload_photos))
+        .route("/admin/gallery/albums/:id/photos", post(handlers::gallery::upload_photos).layer(DefaultBodyLimit::max(50 * 1024 * 1024)))
         .route("/admin/gallery/photos/:id", delete(handlers::gallery::delete_photo))
         // Agendas
         .route("/admin/agendas", get(handlers::agendas::admin_get_agendas))
@@ -100,11 +101,12 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/members/:id", get(handlers::members::admin_get_member_by_id))
         .route("/admin/members/:id", put(handlers::members::admin_update_member))
         .route("/admin/members/:id", delete(handlers::members::admin_delete_member))
+        .route("/admin/members/:id/reset-pin", put(handlers::members::admin_reset_member_pin))
         // Pembayaran & Pesanan Tiket
         .route("/admin/tickets", get(handlers::admin_tickets::admin_list_tickets))
         .route("/admin/tickets/export-csv", get(handlers::admin_tickets::admin_export_tickets_csv))
-        .route("/admin/tickets/checkin", post(handlers::admin_tickets::admin_checkin_ticket))
         .route("/admin/tickets/:id/status", put(handlers::admin_tickets::admin_update_ticket_status))
+        .route("/admin/tickets/:id/proof", get(handlers::admin_tickets::admin_get_ticket_proof))
         // Tiket Kategori Pertandingan
         .route("/admin/matches/:id/tickets", get(handlers::tickets::admin_get_tickets))
         .route("/admin/matches/:id/tickets", post(handlers::tickets::create_ticket))
@@ -125,10 +127,16 @@ pub fn admin_routes(pool: PgPool, config: Config) -> Router {
         .route("/admin/settings/logo", post(handlers::settings::upload_logo))
         .route_layer(from_fn(require_super_admin));
 
+    // Bug 12: check-in bisa dilakukan admin_1 dan super_admin (bukan hanya super_admin)
+    let checkin_routes = Router::new()
+        .route("/admin/tickets/checkin", post(handlers::admin_tickets::admin_checkin_ticket))
+        .route_layer(from_fn(require_admin_1_or_above));
+
     // Gabungkan kedua sub-router dan lindungi dengan auth_middleware utama
     Router::new()
         .merge(content_routes)
         .merge(super_admin_routes)
+        .merge(checkin_routes)
         .route_layer(from_fn(auth_middleware))
         .with_state((pool, config))
 }

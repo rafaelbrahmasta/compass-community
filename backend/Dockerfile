@@ -26,7 +26,7 @@ RUN groupadd -g 10001 appuser && \
 COPY --from=builder /app/target/release/compass-backend /app/compass-backend
 COPY --from=builder /app/migrations /app/migrations
 
-RUN mkdir -p /app/uploads/gallery /app/uploads/news /app/uploads/merch /app/uploads/qr /app/uploads/proof \
+RUN mkdir -p /app/uploads/gallery /app/uploads/news /app/uploads/merch /app/uploads/qr \
     && chown -R appuser:appuser /app
 
 USER appuser

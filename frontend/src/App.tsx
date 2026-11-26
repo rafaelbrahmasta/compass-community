@@ -91,11 +91,15 @@ export default function App() {
               <Route path="/admin/messages" element={<AdminMessages />} />
               <Route path="/admin/account" element={<AdminAccount />} />
 
+              {/* Rute Check-in & Pembayaran Tiket (super_admin & admin_1 untuk petugas gerbang) */}
+              <Route element={<ProtectedRoute allowedRoles={['super_admin', 'admin_1']} />}>
+                <Route path="/admin/pembayaran-tiket" element={<AdminPembayaranTiket />} />
+              </Route>
+
               {/* Rute Khusus SUPER_ADMIN (Protected by role) */}
               <Route element={<ProtectedRoute allowedRoles={['super_admin']} />}>
                 <Route path="/admin/admins" element={<AdminKelolaAdmin />} />
                 <Route path="/admin/anggota" element={<AdminAnggota />} />
-                <Route path="/admin/pembayaran-tiket" element={<AdminPembayaranTiket />} />
                 <Route path="/admin/tiket" element={<AdminTiket />} />
                 <Route path="/admin/reminder" element={<AdminReminder />} />
                 <Route path="/admin/humanity" element={<AdminHumanity />} />

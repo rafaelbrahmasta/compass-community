@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
-  ExternalLink,
   ShieldCheck,
   Search,
 } from 'lucide-react'
@@ -654,7 +653,7 @@ function CheckoutForm({
             required
             value={pin}
             onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-            placeholder="6 digit PIN (default: 6 digit terakhir HP)"
+            placeholder="PIN dari admin Compass"
             className="w-full bg-[#0a110d] border border-white/20 rounded-xl px-3.5 py-2.5 text-white placeholder-white/30 focus:outline-none focus:border-gold transition-colors text-sm font-mono tracking-widest"
           />
           <p className="text-[11px] text-white/40 mt-1">

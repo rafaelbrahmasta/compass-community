@@ -108,7 +108,7 @@ pub async fn upload_thumbnail(
         if field.name() == Some("image") {
             let ct = field.content_type().unwrap_or("image/jpeg").to_string();
             let data = field.bytes().await.map_err(|e| AppError::BadRequest(e.to_string()))?;
-            let url = crate::utils::save_upload(&config.upload_dir, "news", &ct, &data).await?;
+            let url = crate::utils::save_upload(&config, "news", &ct, &data).await?;
             sqlx::query("UPDATE news SET thumbnail_url = $1, updated_at = NOW() WHERE id = $2")
                 .bind(&url).bind(news_id).execute(&pool).await?;
             return Ok(ok("Thumbnail diupload", serde_json::json!({"thumbnail_url": url})));
@@ -116,3 +116,4 @@ pub async fn upload_thumbnail(
     }
     Err(AppError::BadRequest("Field 'image' tidak ditemukan".into()))
 }
+
